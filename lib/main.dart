@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_page_exclusive.dart';
-import 'Common/product_card2.dart';
+//import 'Common/product_card2.dart';
 
 void main() {
   runApp(
@@ -11,7 +11,7 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
+ /* @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Menu Item Demo',
@@ -80,13 +80,11 @@ class MyApp extends StatelessWidget {
         ),
       ),
     );
-  }
- /* @override
+  }*/
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: RewardsScreen(),
     );
-  }*/
-
-
+  }
 }

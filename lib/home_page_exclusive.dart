@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'Common/reward_widget.dart';
-import 'Common/horizontal_scroll_section.dart';
+import 'Common/product_category_list.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -10,7 +10,7 @@ class RewardsScreen extends StatefulWidget {
 }
 
 class _RewardsScreenState extends State<RewardsScreen> {
-  final List<ProductItemData> productItems1 = [
+  /*final List<ProductItemData> productItems1 = [
     ProductItemData(imagePath: 'assets/images/pears.jpg', brandName: 'Fresh Farms', productName: 'Juicy Pears', price: '300 pts'),
     ProductItemData(imagePath: 'assets/images/watermelon.jpg', brandName: 'Green Valley', productName: 'Sweet Watermelon', price: '300 pts'),
     ProductItemData(imagePath: 'assets/images/carrots.jpg', brandName: 'Organic+', productName: 'Crisp Carrots', price: '300 pts'),
@@ -21,66 +21,78 @@ class _RewardsScreenState extends State<RewardsScreen> {
     ProductItemData(imagePath: 'assets/images/cat.jpg', brandName: 'Pet Food Co.', productName: 'Happy Cat Kibble', price: '1500 pts'),
     ProductItemData(imagePath: 'assets/images/radish.jpg', brandName: 'Farm Fresh', productName: 'Spicy Radish', price: '1500 pts'),
     ProductItemData(imagePath: 'assets/images/cherries.jpg', brandName: 'Sweet Treats', productName: 'Ripe Cherries', price: '1500 pts'),
+  ];*/
+  final kathiRolls1 = [
+    Product2ItemData(
+      name: "Aloo Tikki Noodle Kathi Roll",
+      price: "CA\$10.99",
+      description: "Crispy potato patties wrapped in a flavorful noodle wrap.",
+    ),
+    Product2ItemData(
+      name: "Paneer Tikka Kathi Roll",
+      price: "CA\$10.99",
+      description: "Marinated paneer in a creamy tomato sauce wrapped in a soft tortilla.",
+    ),
+    Product2ItemData(
+      name: "Chicken Tikka Kathi Roll",
+      price: "CA\$11.99",
+      description: "Tender chicken in a creamy tomato-based wrap.",
+    ),
+  ];
+
+  final kathiRolls2 = [
+    Product2ItemData(
+      name: 'Paneer Paratha',
+      price: 'CA\$5.99',
+      description: 'Indian-style flatbread stuffed with paneer.',
+      imageUrl: 'assets/images/cat.jpg', // Replace with your image asset
+    ),
+    Product2ItemData(
+      name: 'Aloo Tikki Noodle Kathi Roll',
+      price: 'CA\$10.99',
+      description: 'Crispy potato patties wrapped in a flavorful noodle wrap.',
+    ),
+    Product2ItemData(
+      name: 'Aloo Tikki Noodle Kathi Roll',
+      price: 'CA\$10.99',
+      description: 'Crispy potato patties wrapped in a flavorful noodle wrap.',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Image.asset('assets/images/log.png'), // Replace with your A&W logo
-        title: Align( // 外层Align用于将整个包裹的Container靠右
-          alignment: Alignment.centerRight,
-          child: Container( // 整个右侧地址和按钮的大框
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // 边框内部的间距
-            decoration: BoxDecoration(
-              color: Colors.orange[50], // 整个大框的背景色
-              border: Border.all(color: Colors.grey.shade400, width: 1), // 整个大框的灰色边框
-              borderRadius: BorderRadius.circular(10), // 可选：圆角边框
-            ),
-            child: Row( // 使用Row来水平排列地址Column和圆形按钮
-              mainAxisSize: MainAxisSize.min, // 让Row占据最小的水平空间
-              children: [
-                Column( // 地址文本Column
-                  crossAxisAlignment: CrossAxisAlignment.end, // Column内部文本依然靠右
-                  mainAxisSize: MainAxisSize.min, // 让Column占据最小的水平空间
-                  children: const [
-                    Text(
-                      'Viewing items for Pickup at:',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    Text(
-                      '1875 Pembina Highway, Win...', // Or 867 Waverley Street...
-                      style: TextStyle(fontSize: 14, color: Colors.black),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8), // 地址文本和圆形按钮之间的间距
-                RawMaterialButton( // 圆形编辑按钮
-                  onPressed: () {
-                    // Handle edit location
-                  },
-                  elevation: 0, // 默认不显示阴影
-                  fillColor: Colors.deepOrange.shade50, // 按钮背景色，这里使用一个浅橙色
-                  shape: const CircleBorder(), // 设置为圆形
-                  constraints: BoxConstraints.tightFor(width: 40.0, height: 40.0), // 固定按钮尺寸
-                  child: const Icon(Icons.edit, color: Colors.deepOrange),
-                ),
-              ],
+        leading: Image.asset('assets/images/log.png'),
+        backgroundColor: Colors.blueAccent,
+        actions: [
+          // 使用 Padding 在文字右侧添加一些间距，防止它紧贴屏幕边缘
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center( // 使用 Center 确保文字在垂直方向上居中
+              child: const Text(
+                'SpeedFeast',
+                style: TextStyle(color: Colors.black, fontSize: 40),
+                // textAlign 在这里不再需要，因为 Text 的宽度就是文字本身的宽度
+              ),
             ),
           ),
-        ),
-        actions: const [],
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
             children: [
               const RewardWidget(),
               const SizedBox(height: 16),
-              HorizontalScrollSection(title: 'productItems1', items: productItems1),
+              ProductCategoryList(
+                categoryName: "Kathi Rolls",
+                items: kathiRolls1,
+              ),
               const SizedBox(height: 16),
-              HorizontalScrollSection(title: 'productItems2', items: productItems2),
+              ProductCategoryList(
+                categoryName: "Kathi Rolls",
+                items: kathiRolls2,
+              ),
             ]
         )
       ),
