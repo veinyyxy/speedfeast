@@ -40,33 +40,28 @@ class _RewardWidgetState extends State<RewardWidget> {
                             children: [
                               Row(
                                 children: [
-                                  Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 60,
-                                        height: 60,
-                                        child: CircularProgressIndicator(
-                                          value: 0 / 3000, // Current points / target points
-                                          strokeWidth: 4,
-                                          backgroundColor: Colors.grey[300],
-                                          valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                              Colors.deepOrange),
-                                        ),
-                                      ),
-                                      const Text(
-                                        '0',
-                                        style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
+                                  SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: CircularProgressIndicator(
+                                      value: 1000 / 3000, // Current points / target points
+                                      strokeWidth: 10,
+                                      backgroundColor: Colors.grey[300],
+                                      valueColor: const AlwaysStoppedAnimation<Color>(
+                                          Colors.deepOrange),
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
+                                  const Text(
+                                    '3000',
+                                    style: TextStyle(
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(width: 5),
                                   const Text('pts',
                                       style: TextStyle(
-                                          fontSize: 40,
+                                          fontSize: 20,
                                           fontWeight: FontWeight.bold)),
                                 ],
                               ),

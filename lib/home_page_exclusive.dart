@@ -64,20 +64,10 @@ class _RewardsScreenState extends State<RewardsScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: Image.asset('assets/images/log.png'),
+        title: Text(
+          'SpeedFeast',
+          style: TextStyle(color: Colors.black, fontSize: 40)),
         backgroundColor: Colors.blueAccent,
-        actions: [
-          // 使用 Padding 在文字右侧添加一些间距，防止它紧贴屏幕边缘
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Center( // 使用 Center 确保文字在垂直方向上居中
-              child: const Text(
-                'SpeedFeast',
-                style: TextStyle(color: Colors.black, fontSize: 40),
-                // textAlign 在这里不再需要，因为 Text 的宽度就是文字本身的宽度
-              ),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
