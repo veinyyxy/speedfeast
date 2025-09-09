@@ -11,114 +11,118 @@ class RewardWidget extends StatefulWidget {
   State<RewardWidget> createState() => _RewardWidgetState();
 }
 
+// 文件: lib/Common/reward_widget.dart
+
+// ... (imports and RewardWidget class definition) ...
+
 class _RewardWidgetState extends State<RewardWidget> {
-  // _isExpanded 状态现在由 RewardWidget 自身管理
   bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Card(
-              color: Colors.orange[50],
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
+    // 修改开始: 将原来的 Column 替换为一个统一的 Padding -> Card 结构
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Card(
+        color: Colors.orange[50],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              // --- 这是上半部分的内容 (保持不变) ---
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    width: 40,
-                                    height: 40,
-                                    child: CircularProgressIndicator(
-                                      value: 1000 / 3000, // Current points / target points
-                                      strokeWidth: 10,
-                                      backgroundColor: Colors.grey[300],
-                                      valueColor: const AlwaysStoppedAnimation<Color>(
-                                          Colors.deepOrange),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Text(
-                                    '3000',
-                                    style: TextStyle(
-                                        fontSize: 40,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  const Text('pts',
-                                      style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold)),
-                                ],
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                value: 1000 / 3000, // Current points / target points
+                                strokeWidth: 10,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Colors.deepOrange),
                               ),
-                            ],
-                          ),
-                        ),
-                        Image.asset(
-                          'assets/images/long.jpeg',
-                          height: 60,
-                          width: 100,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              '3000',
+                              style: TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 5),
+                            const Text('pts',
+                                style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold)),
+                          ],
                         ),
                       ],
                     ),
-                    const Text('Unlock more items at 300'),
-                    const SizedBox(height: 10),
-                    if (!_isExpanded)
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isExpanded = true; // 展开奖励详情
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepOrange,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 30, vertical: 12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Text('Explore Rewards',
-                                style: TextStyle(color: Colors.white)),
-                            SizedBox(width: 5),
-                            Icon(Icons.keyboard_arrow_down,
-                                color: Colors.white),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                  Image.asset(
+                    'assets/images/long.jpeg',
+                    height: 60,
+                    width: 100,
+                  ),
+                ],
               ),
-            ),
+              const Text('Unlock more items at 300'),
+              const SizedBox(height: 10),
+
+              // --- 根据 _isExpanded 状态显示按钮或奖励详情 ---
+              if (!_isExpanded)
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isExpanded = true; // 展开奖励详情
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 30, vertical: 12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text('Explore Rewards',
+                          style: TextStyle(color: Colors.white)),
+                      SizedBox(width: 5),
+                      Icon(Icons.keyboard_arrow_down,
+                          color: Colors.white),
+                    ],
+                  ),
+                ),
+
+              if (_isExpanded)
+              // 现在 _RewardsSection 的内容会直接渲染在这个 Card 内部
+                _RewardsSection(
+                  onHide: () {
+                    setState(() {
+                      _isExpanded = false; // 通过回调函数折叠奖励详情
+                    });
+                  },
+                ),
+            ],
           ),
-          if (_isExpanded)
-          // 现在使用私有类 _RewardsSection
-            _RewardsSection(
-              onHide: () {
-                setState(() {
-                  _isExpanded = false; // 通过回调函数折叠奖励详情
-                });
-              },
-            ),
-        ],
-      );
+        ),
+      ),
+    );
+    // 修改结束
   }
 }
 
@@ -169,101 +173,98 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
   Widget build(BuildContext context) {
     final List<ProductItemData> currentRewards = _rewardsData[_selectedPoints] ?? [];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Card(
-        color: Colors.orange[50],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+    // 修改开始: 移除外层的 Padding 和 Card，直接返回包含内容的 Column
+    // 这样它就可以被无缝地嵌入到父组件的 Card 中
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 添加一个分隔线，实现 "上面部分一个边框" 的视觉效果
+        const SizedBox(height: 10),
+        const Divider(),
+        const SizedBox(height: 20),
+
+        // --- 以下是 _RewardsSection 的原始内部 UI (保持不变) ---
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: _pointOptions.map((points) {
+            return _buildPointButton(
+              context,
+              points,
+              isSelected: _selectedPoints == points,
+              onTap: () {
+                setState(() {
+                  _selectedPoints = points;
+                });
+              },
+            );
+          }).toList(),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: _pointOptions.map((points) {
-                  return _buildPointButton(
-                    context,
-                    points,
-                    isSelected: _selectedPoints == points,
-                    onTap: () {
-                      setState(() {
-                        _selectedPoints = points;
-                      });
-                    },
-                  );
-                }).toList(),
+        const SizedBox(height: 20),
+        HorizontalScrollSection(
+          title: '$_selectedPoints Reward Items',
+          items: currentRewards,
+          onViewMore: () {
+            if (kDebugMode) {
+              print('View more $_selectedPoints items tapped!');
+            }
+            // Handle "See All Rewards" logic for this specific point category
+          },
+        ),
+        const SizedBox(height: 20),
+        Center(
+          child: ElevatedButton(
+            onPressed: () {
+              // Handle See All Rewards
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepOrange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 20),
-              HorizontalScrollSection(
-                title: '$_selectedPoints Reward Items',
-                items: currentRewards,
-                onViewMore: () {
-                  if (kDebugMode) {
-                    print('View more $_selectedPoints items tapped!');
-                  }
-                  // Handle "See All Rewards" logic for this specific point category
-                },
-              ),
-              const SizedBox(height: 20),
-              Center(
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Handle See All Rewards
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepOrange,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 12),
-                  ),
-                  child: const Text('See All Rewards',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    // Handle About A&W Rewards
-                  },
-                  child: const Text('About Rewards',
-                      style: TextStyle(color: Colors.deepOrange)),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Center(
-                child: ElevatedButton(
-                  onPressed: widget.onHide,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: const BorderSide(color: Colors.grey),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text('Hide',
-                          style: TextStyle(color: Colors.deepOrange)),
-                      SizedBox(width: 5),
-                      Icon(Icons.keyboard_arrow_up, color: Colors.deepOrange),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 40, vertical: 12),
+            ),
+            child: const Text('See All Rewards',
+                style: TextStyle(color: Colors.white)),
           ),
         ),
-      ),
+        const SizedBox(height: 10),
+        Center(
+          child: TextButton(
+            onPressed: () {
+              // Handle About A&W Rewards
+            },
+            child: const Text('About Rewards',
+                style: TextStyle(color: Colors.deepOrange)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: ElevatedButton(
+            onPressed: widget.onHide,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Colors.grey),
+              ),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 40, vertical: 12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text('Hide',
+                    style: TextStyle(color: Colors.deepOrange)),
+                SizedBox(width: 5),
+                Icon(Icons.keyboard_arrow_up, color: Colors.deepOrange),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
+    // 修改结束
   }
 
   Widget _buildPointButton(
