@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'Common/reward_widget.dart';
 import 'Common/product_category_list.dart';
 
-class RewardsScreen extends StatefulWidget {
-  const RewardsScreen({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<RewardsScreen> createState() => _RewardsScreenState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _RewardsScreenState extends State<RewardsScreen> {
+class _HomePageState extends State<HomePage> {
   /*final List<ProductItemData> productItems1 = [
     ProductItemData(imagePath: 'assets/images/pears.jpg', brandName: 'Fresh Farms', productName: 'Juicy Pears', price: '300 pts'),
     ProductItemData(imagePath: 'assets/images/watermelon.jpg', brandName: 'Green Valley', productName: 'Sweet Watermelon', price: '300 pts'),
@@ -66,10 +66,89 @@ class _RewardsScreenState extends State<RewardsScreen> {
         leading: Image.asset('assets/images/log.png'),
         title: Text(
           'SpeedFeast',
-          style: TextStyle(color: Colors.black, fontSize: 40)),
-        backgroundColor: Colors.blueAccent,
+          style: TextStyle(color: Colors.black, fontSize: 30, fontWeight: FontWeight.bold)),
+        backgroundColor: Color.fromARGB(50, 255, 160, 122),
       ),
-      body: SingleChildScrollView(
+      body: CustomScrollView(
+        slivers: <Widget>[
+          SliverAppBar(
+            expandedHeight: 200.0,
+            floating: false,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              title: const Text('Speed Feast',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.0,
+                  )),
+              background: Stack( // 使用 Stack 来叠加图片和文字
+                children: <Widget>[
+                  Image.asset(
+                    'assets/images/sushi.jpg',
+                    fit: BoxFit.cover,
+                    width: double.infinity, // 确保图片宽度填充可用空间
+                    height: double.infinity, // 确保图片高度填充可用空间
+                  ),
+                  Positioned( // 定位文本到底部中间
+                    bottom: 20.0, // 距离底部20像素
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min, // 让 Column 尽可能小
+                      children: const <Widget>[
+                        Text(
+                          'Welcome to SpeedFeast Restaurant',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22.0,
+                            fontWeight: FontWeight.bold,
+                            shadows: [ // 添加文字阴影使其更易读
+                              Shadow(
+                                blurRadius: 3.0,
+                                color: Colors.black,
+                                offset: Offset(1.0, 1.0),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 8.0), // 添加一点垂直间距
+                        Text(
+                          '体验极速美食与温馨氛围的完美结合，让您的味蕾享受非凡之旅。', // 餐厅介绍
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14.0,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 3.0,
+                                color: Colors.black,
+                                offset: Offset(1.0, 1.0),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (BuildContext context, int index) {
+                return ListTile(
+                  title: Text('列表项 $index'),
+                );
+              },
+              childCount: 50,
+            ),
+          ),
+        ],
+      ),
+      /*SingleChildScrollView(
         child: Column(
             children: [
               const RewardWidget(),
@@ -85,7 +164,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
               ),
             ]
         )
-      ),
+      )*/
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.deepOrange,

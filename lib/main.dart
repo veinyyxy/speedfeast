@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'home_page_exclusive.dart';
-//import 'Common/product_card2.dart';
-
+import 'home_page_exclusive2.dart';
+import 'OrderPage/order_list_page.dart';
+import 'MoreMenu/more_main_menu.dart';
+import 'MoreMenu/more_my_account.dart';
+import 'MoreMenu/more_my_account_personal_info.dart';
 void main() {
   runApp(
       MyApp()
@@ -10,7 +12,19 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      routes: {
+        '/': (context) => HomePage(),
+        '/order_page': (context) => OrderListPage(),
+        '/more_page': (context) => MoreMainMenu(),
+        '/more_page/my_account': (context) => MyAccountScreen(),
+        '/more_page/my_account/personal_info': (context) => PersonalInfoPage()
+      },
+      initialRoute: '/',
+    );
+  }
  /* @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -81,10 +95,4 @@ class MyApp extends StatelessWidget {
       ),
     );
   }*/
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: RewardsScreen(),
-    );
-  }
 }

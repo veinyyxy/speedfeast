@@ -26,16 +26,16 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'A&W Order List Demo',
+      /*title: 'A&W Order List Demo',
       theme: ThemeData(
         primarySwatch: Colors.deepOrange,
-        scaffoldBackgroundColor: Colors.grey[50],
+        //scaffoldBackgroundColor: Colors.deepOrange,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black),
         ),
-      ),
+      ),*/
       home: const OrderListPage(),
     );
   }
@@ -153,9 +153,19 @@ class _OrderListPageState extends State<OrderListPage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.white, // 添加这行，将背景色设置为白色
+        elevation: 4.0, // 明确设置为没有阴影
         leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
-          onPressed: () {},
+          icon: const Icon(
+              Icons.keyboard_arrow_down,
+          ),
+          color: Colors.deepOrange,
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          /*splashColor: Colors.deepOrange.withValues(alpha: 0.3),
+          highlightColor: Colors.deepOrange.withValues(alpha: 0.1),
+          hoverColor: Colors.deepOrange.withValues(alpha: 0.05),*/
         ),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -170,7 +180,7 @@ class _OrderListPageState extends State<OrderListPage> {
                 ],
               ),
             ),
-            const Text('YOUR BAG', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text('YOUR ORDER DETAILS', style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(width: 48),
           ],
         ),

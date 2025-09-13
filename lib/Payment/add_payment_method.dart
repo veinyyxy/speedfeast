@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+// 1. 导入 font_awesome_flutter 包
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -51,7 +53,8 @@ class AddPaymentMethodPage extends StatelessWidget {
         children: [
           _buildPaymentMethodItem(
             context,
-            icon: Icons.credit_card, // Credit card icon
+            // 3. 传入完整的 Icon Widget
+            iconWidget: Icon(Icons.credit_card, size: 24, color: Colors.grey[700]),
             title: 'Credit or debit card',
             onTap: () {
               print('Credit or debit card tapped');
@@ -62,7 +65,7 @@ class AddPaymentMethodPage extends StatelessWidget {
 
           _buildPaymentMethodItem(
             context,
-            icon: Icons.paypal, // PayPal icon (Note: this icon might look slightly different than the image's custom PayPal logo)
+            iconWidget: Icon(Icons.paypal, size: 24, color: Colors.grey[700]),
             title: 'PayPal',
             onTap: () {
               print('PayPal tapped');
@@ -71,25 +74,49 @@ class AddPaymentMethodPage extends StatelessWidget {
           ),
           const Divider(indent: 16, endIndent: 16, height: 0),
 
+          // --- 新增 Google Pay ---
           _buildPaymentMethodItem(
             context,
-            icon: Icons.card_giftcard, // Gift card icon
+            iconWidget: FaIcon(FontAwesomeIcons.googlePay, size: 24, color: Colors.grey[700]),
+            title: 'Google Pay',
+            onTap: () {
+              print('Google Pay tapped');
+              // Navigate to Google Pay linking page
+            },
+          ),
+          const Divider(indent: 16, endIndent: 16, height: 0),
+
+          // --- 新增 Apple Pay ---
+          _buildPaymentMethodItem(
+            context,
+            iconWidget: FaIcon(FontAwesomeIcons.applePay, size: 24, color: Colors.grey[700]),
+            title: 'Apple Pay',
+            onTap: () {
+              print('Apple Pay tapped');
+              // Navigate to Apple Pay linking page
+            },
+          ),
+          /*const Divider(indent: 16, endIndent: 16, height: 0),
+
+          _buildPaymentMethodItem(
+            context,
+            iconWidget: Icon(Icons.card_giftcard, size: 24, color: Colors.grey[700]),
             title: 'Gift card',
             onTap: () {
               print('Gift card tapped');
               // Navigate to gift card entry page
             },
-          ),
+          ),*/
           // No divider after the last item based on the image
         ],
       ),
     );
   }
 
-  // Helper method to build a consistent payment method list item
+  // 2. 修改辅助方法，使其接受一个 Widget 类型的 iconWidget，更加灵活
   Widget _buildPaymentMethodItem(
       BuildContext context, {
-        required IconData icon,
+        required Widget iconWidget, // 修改点：从 IconData 改为 Widget
         required String title,
         required VoidCallback onTap,
       }) {
@@ -99,7 +126,11 @@ class AddPaymentMethodPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Row(
           children: [
-            Icon(icon, size: 24, color: Colors.grey[700]), // Icon on the left
+            // 使用 SizedBox 确保所有图标占用相同的空间
+            SizedBox(
+              width: 24,
+              child: Center(child: iconWidget),
+            ),
             const SizedBox(width: 16.0), // Spacing between icon and text
             Expanded(
               child: Text(
