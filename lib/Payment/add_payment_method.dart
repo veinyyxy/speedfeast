@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// 1. 导入 font_awesome_flutter 包
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() {
@@ -14,18 +13,25 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Add Payment Method',
       theme: ThemeData(
-        primarySwatch: Colors.blueGrey,
+        // 将主色调改为 DeepOrange
+        primarySwatch: Colors.deepOrange,
         scaffoldBackgroundColor: Colors.white, // Pure white background
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white, // White app bar
+          // AppBar 背景色改为 DeepOrange
+          backgroundColor: Colors.white70,
           elevation: 0, // No shadow for app bar
-          iconTheme: IconThemeData(color: Colors.black), // Black back arrow
+          // AppBar 图标颜色改为白色，与 DeepOrange 背景形成对比
+          iconTheme: IconThemeData(color: Colors.deepOrange),
           titleTextStyle: TextStyle(
-            color: Colors.black, // Black title text
+            // AppBar 标题文字颜色改为白色
+            color: Colors.deepOrange,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: IconThemeData(color: Colors.deepOrange),
+        // 如果你需要按钮、浮动操作按钮等也使用 DeepOrange
+        // colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.deepOrange),
       ),
       home: const AddPaymentMethodPage(),
     );
@@ -53,8 +59,7 @@ class AddPaymentMethodPage extends StatelessWidget {
         children: [
           _buildPaymentMethodItem(
             context,
-            // 3. 传入完整的 Icon Widget
-            iconWidget: Icon(Icons.credit_card, size: 24, color: Colors.grey[700]),
+            iconWidget: Icon(Icons.credit_card, size: 24, /*color: Colors.grey[700]*/),
             title: 'Credit or debit card',
             onTap: () {
               print('Credit or debit card tapped');
@@ -65,7 +70,7 @@ class AddPaymentMethodPage extends StatelessWidget {
 
           _buildPaymentMethodItem(
             context,
-            iconWidget: Icon(Icons.paypal, size: 24, color: Colors.grey[700]),
+            iconWidget: Icon(Icons.paypal, size: 24, /*color: Colors.grey[700]*/),
             title: 'PayPal',
             onTap: () {
               print('PayPal tapped');
@@ -77,7 +82,7 @@ class AddPaymentMethodPage extends StatelessWidget {
           // --- 新增 Google Pay ---
           _buildPaymentMethodItem(
             context,
-            iconWidget: FaIcon(FontAwesomeIcons.googlePay, size: 24, color: Colors.grey[700]),
+            iconWidget: FaIcon(FontAwesomeIcons.googlePay, size: 24, /*color: Colors.grey[700]*/),
             title: 'Google Pay',
             onTap: () {
               print('Google Pay tapped');
@@ -89,44 +94,30 @@ class AddPaymentMethodPage extends StatelessWidget {
           // --- 新增 Apple Pay ---
           _buildPaymentMethodItem(
             context,
-            iconWidget: FaIcon(FontAwesomeIcons.applePay, size: 24, color: Colors.grey[700]),
+            iconWidget: FaIcon(FontAwesomeIcons.applePay, size: 24, /*color: Colors.grey[700]*/),
             title: 'Apple Pay',
             onTap: () {
               print('Apple Pay tapped');
               // Navigate to Apple Pay linking page
             },
           ),
-          /*const Divider(indent: 16, endIndent: 16, height: 0),
-
-          _buildPaymentMethodItem(
-            context,
-            iconWidget: Icon(Icons.card_giftcard, size: 24, color: Colors.grey[700]),
-            title: 'Gift card',
-            onTap: () {
-              print('Gift card tapped');
-              // Navigate to gift card entry page
-            },
-          ),*/
-          // No divider after the last item based on the image
         ],
       ),
     );
   }
 
-  // 2. 修改辅助方法，使其接受一个 Widget 类型的 iconWidget，更加灵活
   Widget _buildPaymentMethodItem(
       BuildContext context, {
-        required Widget iconWidget, // 修改点：从 IconData 改为 Widget
+        required Widget iconWidget,
         required String title,
         required VoidCallback onTap,
       }) {
-    return InkWell( // Use InkWell for a ripple effect on tap
+    return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Row(
           children: [
-            // 使用 SizedBox 确保所有图标占用相同的空间
             SizedBox(
               width: 24,
               child: Center(child: iconWidget),
@@ -137,11 +128,11 @@ class AddPaymentMethodPage extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   fontSize: 16,
-                  color: Colors.black,
+                  /*color: Colors.black,*/ // 列表项文字颜色保持黑色，或根据需要调整
                 ),
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey), // Right arrow icon
+            const Icon(Icons.arrow_forward_ios, size: 16, /*color: Colors.grey*/), // Right arrow icon
           ],
         ),
       ),

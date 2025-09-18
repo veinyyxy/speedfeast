@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-// TODO: 请根据你的项目结构，修改为正确的导入路径
 import 'expandable_cart_button.dart';
 
 class ProductCard2 extends StatelessWidget {
+  final String id;
   final String name;
   final String price;
   final String description;
@@ -13,6 +13,7 @@ class ProductCard2 extends StatelessWidget {
 
   const ProductCard2({
     super.key,
+    required this.id,
     required this.name,
     required this.price,
     required this.description,

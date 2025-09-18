@@ -37,6 +37,7 @@ class ProductCategoryList extends StatelessWidget {
           itemBuilder: (context, index) {
             final item = items[index];
             return ProductCard2(
+              id: item.id,
               name: item.name,
               price: item.price,
               description: item.description,
@@ -58,12 +59,14 @@ class ProductCategoryList extends StatelessWidget {
 
 // 用于承载商品数据的模型
 class Product2ItemData {
+  final String id;
   final String name;
   final String price;
   final String description;
   final String? imageUrl;
 
   Product2ItemData({
+    required this.id,
     required this.name,
     required this.price,
     required this.description,

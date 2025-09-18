@@ -95,16 +95,19 @@ class _HomePageState extends State<HomePage> {
       categoryName: "Kathi Rolls",
       items: [
         Product2ItemData(
+          id: '1',
           name: "Alsja Roll",
           price: "CA\$10.99",
           description: "Crispy potato patties wrapped in a flavorful noodle wrap.",
         ),
         Product2ItemData(
+          id: '2',
           name: "Paneer Tikka Kathi Roll",
           price: "CA\$10.99",
           description: "Marinated paneer in a creamy tomato sauce wrapped in a soft tortilla.",
         ),
         Product2ItemData(
+          id: '3',
           name: "Chicken Tikka Kathi Roll",
           price: "CA\$11.99",
           description: "Tender chicken in a creamy tomato-based wrap.",
@@ -116,17 +119,20 @@ class _HomePageState extends State<HomePage> {
       categoryName: "Kathi Rolls",
       items: [
         Product2ItemData(
+          id: '4',
           name: 'Paneer Paratha',
           price: 'CA\$5.99',
           description: 'Indian-style flatbread stuffed with paneer.',
           imageUrl: 'assets/images/cat.jpg', // Replace with your image asset
         ),
         Product2ItemData(
+          id: '5',
           name: 'Crispy Selmon Roll',
           price: 'CA\$10.99',
           description: 'Crispy potato patties wrapped in a flavorful noodle wrap.',
         ),
         Product2ItemData(
+          id: '6',
           name: 'Aloo Tikki Noodle Kathi Roll',
           price: 'CA\$10.99',
           description: 'Crispy potato patties wrapped in a flavorful noodle wrap.',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../Common/select_edit_box.dart';
 
 void main() {
   runApp(MyApp());
@@ -32,24 +33,39 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
   bool _showOriginalPassword = false;
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
-  // 初始时可以设置为 null 或一个默认选中地址的 ID
+  // 存储地址列表，包含 id 和地址信息
+  final List<Map<String, String>> _addresses = [
+    {'id': 'home_address', 'label': 'Home', 'value': 'Ghelph St Manitoba MB'},
+    {'id': 'work_address', 'label': 'Work', 'value': 'Grant Park St Manitoba MB'},
+  ];
   String? _selectedAddressId;
 
   @override
   void initState() {
     super.initState();
-    // 可以在这里设置默认选中的地址，例如默认选中“Home”
+    // 默认选中“Home”地址
     _selectedAddressId = 'home_address';
   }
 
-  // 新增：处理地址选择的函数
+  // 处理地址选择
   void _handleAddressSelection(String id) {
     setState(() {
       _selectedAddressId = id;
     });
     print('Selected address: $id');
-    // 如果你还需要在选中某个地址时执行其他操作，可以在这里添加
-    // 例如，弹出对话框提示用户“您已选择此地址为默认地址”等
+  }
+
+  // 删除地址
+  void _deleteAddress(String id) {
+    setState(() {
+      _addresses.removeWhere((address) => address['id'] == id);
+      if (_selectedAddressId == id) {
+        _selectedAddressId = _addresses.isNotEmpty ? _addresses[0]['id'] : null;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Address deleted')),
+    );
   }
 
   @override
@@ -57,7 +73,7 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios),
+          icon: Icon(Icons.arrow_back),
           color: Colors.deepOrange,
           onPressed: () {
             Navigator.pop(context);
@@ -89,13 +105,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
               SizedBox(height: 10),
               _buildTextField('Last Name *', 'Yang', true),
               SizedBox(height: 10),
-              // 这些是非组选择的 SelectEditBox，它们不需要 id 和 isSelected
               SelectEditBox(
                 key: const ValueKey('phone_number_field'),
                 label: 'Phone number *',
                 value: '431232345',
-                // 这里 onTap 可以是 null 或者执行其他非选择组操作
-                // 例如，显示编辑对话框，而不是将其设为选中状态
                 onTap: () => print('Show edit dialog for Phone number.'),
                 onIconTap: () {
                   print('Show Dialog for Phone number.');
@@ -117,34 +130,52 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              // !!! 组选择的 SelectEditBox 配置如下 !!!
-              SelectEditBox(
-                key: const ValueKey('home_address_field'), // 确保 Key 仍然唯一
-                id: 'home_address', // 为“家”地址设置一个唯一ID
-                label: 'Home',
-                value: 'Ghelph St Manitoba MB',
-                // 检查当前 ID 是否与 _selectedAddressId 匹配来设置 isSelected
-                isSelected: _selectedAddressId == 'home_address',
-                // 当这个框体被点击时，调用 _handleAddressSelection 更新选中状态
-                onTap: () => _handleAddressSelection('home_address'),
-                onIconTap: () {
-                  print('Edit Ghelph St address.');
-                },
-              ),
-              SizedBox(height: 10),
-              SelectEditBox(
-                key: const ValueKey('work_address_field'), // 确保 Key 仍然唯一
-                id: 'work_address', // 为“工作”地址设置一个唯一ID
-                label: 'Work',
-                value: 'Grant Park St Manitoba MB',
-                // 检查当前 ID 是否与 _selectedAddressId 匹配来设置 isSelected
-                isSelected: _selectedAddressId == 'work_address',
-                // 当这个框体被点击时，调用 _handleAddressSelection 更新选中状态
-                onTap: () => _handleAddressSelection('work_address'),
-                onIconTap: () {
-                  print('Edit Grant Park St Manitoba MB.');
-                },
-              ),
+              // 使用 ListView.builder 渲染可删除的地址列表
+              ..._addresses.map((address) {
+                return Dismissible(
+                  key: Key(address['id']!),
+                  direction: DismissDirection.endToStart, // 向左拖动删除
+                  onDismissed: (direction) {
+                    _deleteAddress(address['id']!);
+                  },
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: EdgeInsets.only(right: 20.0),
+                    child: Icon(Icons.delete, color: Colors.white),
+                  ),
+                  child: SelectEditBox(
+                    key: Key('${address['id']}_select'),
+                    id: address['id'],
+                    label: address['label']!,
+                    value: address['value']!,
+                    isSelected: _selectedAddressId == address['id'],
+                    onTap: () => _handleAddressSelection(address['id']!),
+                    onIconTap: () {
+                      print('Edit ${address['value']}');
+                    },
+                  ),
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Confirm Delete'),
+                        content: Text('Are you sure you want to delete this address?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }).toList(),
               SizedBox(height: 10),
               _buildAddAddressButton(),
               SizedBox(height: 20),
@@ -211,7 +242,6 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                 label,
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
-              //SizedBox(height: 4),
               Text(
                 value,
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -290,74 +320,6 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-class SelectEditBox extends StatefulWidget {
-  final String label;
-  final String value;
-  final VoidCallback? onTap;       // 整个框体的点击事件，现在用于通知父级我被选中了
-  final VoidCallback onIconTap;   // 右侧图标的点击事件
-  final String? id;               // 新增：可选的唯一标识符，用于组选择
-  final bool isSelected;          // 新增：由父级控制的选中状态
-
-  const SelectEditBox({
-    super.key,
-    required this.label,
-    required this.value,
-    this.onTap,
-    required this.onIconTap,
-    this.id,                      // 允许传入 id
-    this.isSelected = false,      // 默认不选中
-  });
-
-  @override
-  State<SelectEditBox> createState() => _SelectEditBoxState();
-}
-
-class _SelectEditBoxState extends State<SelectEditBox> {
-  // 移除了 bool _isSelected 状态
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      // 整个框体的点击事件，直接使用 widget.onTap
-      // 这个 onTap 将由父级提供，用于更新父级的选中状态
-      onTap: widget.onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-          // 根据 widget.isSelected 状态改变边框颜色
-          border: Border.all(color: widget.isSelected ? Colors.deepOrange : Colors.grey[300]!),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.label,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.value.isEmpty ? widget.label : widget.value,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.chevron_right),
-              color: Colors.deepOrange,
-              onPressed: widget.onIconTap,
-            ),
-          ],
-        ),
       ),
     );
   }

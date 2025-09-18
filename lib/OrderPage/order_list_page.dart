@@ -167,7 +167,14 @@ class _OrderListPageState extends State<OrderListPage> {
           highlightColor: Colors.deepOrange.withValues(alpha: 0.1),
           hoverColor: Colors.deepOrange.withValues(alpha: 0.05),*/
         ),
-        title: Row(
+        title: const Text('YOUR ORDER DETAILS',
+            style: TextStyle(
+                color: Colors.deepOrange,
+                fontWeight: FontWeight.bold,
+                fontSize: 18
+            )
+        ),
+        /*Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
@@ -183,8 +190,8 @@ class _OrderListPageState extends State<OrderListPage> {
             const Text('YOUR ORDER DETAILS', style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(width: 48),
           ],
-        ),
-        centerTitle: false,
+        ),*/
+        centerTitle: true,
         toolbarHeight: 60,
       ),
       body: SingleChildScrollView(
@@ -330,7 +337,7 @@ class _OrderListPageState extends State<OrderListPage> {
                       : _buildPaymentInfoCard(_paymentInfo!), // 显示已有的支付信息
                   // ================================================================
                   const SizedBox(height: 10),
-                  Text('© 2023 A&W Food Services of Canada Inc.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  Text('Copyright....................', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
             ),

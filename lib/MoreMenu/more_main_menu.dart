@@ -12,9 +12,47 @@ class MyApp extends StatelessWidget {
     // 建议：如果MoreMainMenu是应用的一个子页面，
     // 通常MyApp会提供一个顶层的MaterialApp和Navigator。
     // 例如：
-    // return MaterialApp(
-    //   home: SomeInitialScreen(), // 或一个主页
-    // );
+    return MaterialApp(
+      theme: ThemeData(
+        // 将主色调改为 DeepOrange
+        primarySwatch: Colors.deepOrange,
+        scaffoldBackgroundColor: Colors.white, // Pure white background
+        appBarTheme: const AppBarTheme(
+          // AppBar 背景色改为 DeepOrange
+          backgroundColor: Colors.white70,
+          elevation: 0, // No shadow for app bar
+          // AppBar 图标颜色改为白色，与 DeepOrange 背景形成对比
+          iconTheme: IconThemeData(color: Colors.deepOrange),
+
+          titleTextStyle: TextStyle(
+            // AppBar 标题文字颜色改为白色
+            color: Colors.deepOrange,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        iconTheme: IconThemeData(color: Colors.deepOrange),
+        buttonTheme: ButtonThemeData(
+          buttonColor: Colors.deepOrange,
+          textTheme: ButtonTextTheme.primary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25.0),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.deepOrange,
+            side: const BorderSide(color: Colors.deepOrange, width: 2),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(25.0),
+            ),
+          ),
+        )
+        // 如果你需要按钮、浮动操作按钮等也使用 DeepOrange
+        // colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.deepOrange),
+      ),
+      home: MoreMainMenu(), // 或一个主页
+    );
     // 然后从SomeInitialScreen导航到MoreMainMenu
     // For demonstration, we'll keep MoreMainMenu as the root for now.
     return MoreMainMenu();
@@ -33,17 +71,17 @@ class MoreMainMenu extends StatelessWidget {
         // 添加返回按钮
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down),
-          color: Colors.deepOrange,
+          //color: Colors.deepOrange,
           onPressed: () {
             Navigator.pop(context);
           },
         ),
         title: const Text('MORE',
             style: TextStyle(
-              color: Colors.deepOrange,
+              //color: Colors.deepOrange,
               fontWeight: FontWeight.bold,
             )),
-        backgroundColor: Colors.white,
+        //backgroundColor: Colors.white,
         elevation: 0,
       ),
       body: MoreScreen(),
@@ -57,14 +95,19 @@ class MoreScreen extends StatelessWidget {
   // 定义菜单项数据
   final List<Map<String, dynamic>> menuItems = [
     {
-      'title': 'My Account',
+      'title': 'Personal Info',
       'icon': Icons.person_outline,
-      'action': (BuildContext context) => Navigator.pushNamed(context, '/more_page/my_account'), // 示例点击响应函数
+      'action': (BuildContext context) => Navigator.pushNamed(context, '/more_page/personal_info'), // 示例点击响应函数
+    },
+    {
+      'title': 'Payment Options',
+      'icon': Icons.credit_card,
+      'action': (BuildContext context) => Navigator.pushNamed(context, '/more_page/payment_options/payment_list'),
     },
     {
       'title': 'Recent Orders',
       'icon': Icons.assignment,
-      'action': (BuildContext context) => print('Recent Orders clicked!'),
+      'action': (BuildContext context) => Navigator.pushNamed(context, '/order_page/recent_orders'),
     },
     {
       'title': 'Points Activity',
@@ -72,9 +115,9 @@ class MoreScreen extends StatelessWidget {
       'action': (BuildContext context) => print('Points Activity clicked!'),
     },
     {
-      'title': 'About A&W Rewards',
+      'title': 'About Rewards',
       'icon': Icons.radio_button_checked,
-      'action': (BuildContext context) => print('About A&W Rewards clicked!'),
+      'action': (BuildContext context) => print('About Rewards clicked!'),
     },
     {
       'title': 'Marketing Notifications',
@@ -102,7 +145,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
+      //color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         children: <Widget>[
@@ -119,7 +162,7 @@ class MoreScreen extends StatelessWidget {
                       children: <Widget>[
                         Icon(
                           item['icon'],
-                          color: Colors.deepOrange,
+                          //color: Colors.deepOrange,
                           size: 28,
                         ),
                         const SizedBox(width: 16.0),
@@ -128,13 +171,13 @@ class MoreScreen extends StatelessWidget {
                             item['title'],
                             style: const TextStyle(
                               fontSize: 18.0,
-                              color: Colors.black87,
+                              //color: Colors.black87,
                             ),
                           ),
                         ),
                         const Icon(
                           Icons.chevron_right,
-                          color: Colors.grey,
+                          //color: Colors.grey,
                         ),
                       ],
                     ),
@@ -142,7 +185,7 @@ class MoreScreen extends StatelessWidget {
                 );
               },
               separatorBuilder: (context, index) => const Divider(
-                color: Colors.grey,
+                //color: Colors.grey,
                 height: 1,
               ), // 添加分割线
             ),
@@ -154,18 +197,18 @@ class MoreScreen extends StatelessWidget {
               height: 50.0,
               child: OutlinedButton(
                 onPressed: () => _onSignOut(context), // 绑定退出登录函数
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.deepOrange, width: 2),
+                /*style: OutlinedButton.styleFrom(
+                  side: const BorderSide(*//*color: Colors.deepOrange, *//*width: 2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25.0),
                   ),
-                  backgroundColor: Colors.white,
-                ),
+                  //backgroundColor: Colors.white,
+                ),*/
                 child: const Text(
                   'Sign out',
                   style: TextStyle(
                     fontSize: 18.0,
-                    color: Colors.deepOrange,
+                    //color: Colors.deepOrange,
                   ),
                 ),
               ),
