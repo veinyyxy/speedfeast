@@ -1,0 +1,14 @@
+{
+  "service":
+  {
+    "name": "http://192.168.100.100",
+    "port": 3000,
+    "function":
+    {
+      "getProductList" : "/api/products/get_list",
+      "sendVerificationCode" : "/api/verification/send_verification",
+      "verifyVerificationCode" : "/api/verification/verify"
+    }
+  }
+
+}

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../Controller/service_provider.dart';
+
 import 'home_page_exclusive2.dart';
 import 'OrderPage/order_list_page.dart';
 import 'OrderPage/recent_order_page.dart';
@@ -6,10 +10,24 @@ import 'MoreMenu/more_main_menu.dart';
 import 'MoreMenu/more_my_account_personal_info.dart';
 import 'Payment/add_payment_method.dart';
 import 'Payment/payment_list_page.dart';
+import 'RegisterPage/sign_up_screen.dart';
+import 'RegisterPage/verification_page.dart';
+import 'RegisterPage/mobile_number_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 加载 .env 文件
+  await dotenv.load(fileName: "configs/.env");
+  
+  final serviceProvider = ServiceProvider();
+  await serviceProvider.loadConfig();
+  await serviceProvider.fetchInitData();
+
   runApp(
-      MyApp()
+    ChangeNotifierProvider.value(
+      value: serviceProvider,
+      child: const MyApp(),
+    ),
   );
 }
 
@@ -72,6 +90,23 @@ class MyApp extends StatelessWidget {
         '/more_page/personal_info': (context) => PersonalInfoPage(),
         '/more_page/payment_options': (context) => AddPaymentMethodPage(),
         '/more_page/payment_options/payment_list': (context) => PaymentListPage(),
+        'register/mobile_number_page': (context) => MobileNumberPage(),
+        '/register/sign_up_screen': (context) => SignUpScreen(),
+        '/register/VerificationPage': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments;
+
+          if (args is Map<String, dynamic>) {
+            final String? emailAddress = args['email'] as String?;
+            final String? phoneNumber = args['phone'] as String?; // 获取额外参数
+
+            if (emailAddress == null && phoneNumber == null) {
+              return const Text('Error: Email or Phone argument not provided');
+            }
+            final String emailOrPhoneValue = emailAddress ?? phoneNumber!;
+            return VerificationPage(emailOrPhone: emailOrPhoneValue, type: emailAddress == null ? 'phone' : 'email');
+          }
+          return const Text('Error: Invalid arguments for VerificationPage');
+        },
       },
       initialRoute: '/',
     );

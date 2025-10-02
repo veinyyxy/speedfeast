@@ -13,6 +13,7 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
   final TextEditingController _phoneController = TextEditingController();
   String? _phoneNumber; // 存储完整的手机号码 (带国家码)
   bool _isNextButtonEnabled = false;
+  bool _isSkipButtonVisible = false; // <<< 这里：恢复变量声明，并将其默认值设置为 false
 
   @override
   void initState() {
@@ -123,30 +124,37 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            const SizedBox(height: 24),
 
-            // Skip 按钮
-            ElevatedButton(
-              onPressed: () {
-                // 处理跳过逻辑
-                if (kDebugMode) {
-                  print('Skip tapped!');
-                }
-                // Navigator.push(context, MaterialPageRoute(builder: (context) => NextPage()));
-              },
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.black, backgroundColor: Colors.grey[200], // 文本颜色为黑色，背景颜色为浅灰色
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0, // 移除阴影
+            // <<< 这里：恢复 Skip 按钮的条件显示逻辑
+            if (_isSkipButtonVisible) // 如果 _isSkipButtonVisible 为 true，则显示此按钮
+              Column( // 使用 Column 包裹，以正确添加 SizedBox
+                children: [
+                  const SizedBox(height: 24),
+                  // Skip 按钮
+                  ElevatedButton(
+                    onPressed: () {
+                      // 处理跳过逻辑
+                      if (kDebugMode) {
+                        print('Skip tapped!');
+                      }
+                      // Navigator.push(context, MaterialPageRoute(builder: (context) => NextPage()));
+                    },
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      backgroundColor: Colors.grey[200], // 文本颜色为黑色，背景颜色为浅灰色
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0, // 移除阴影
+                    ),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
               ),
-              child: const Text(
-                'Skip',
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
 
             const Spacer(), // 将底部导航按钮推到底部
 
@@ -169,11 +177,12 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                   heroTag: "nextBtn", // 避免多个 FloatingActionButton 的 heroTag 冲突
                   onPressed: _isNextButtonEnabled
                       ? () {
-                    // 处理 Next 逻辑
-                    if (kDebugMode) {
-                      print('Next tapped with phone: $_phoneNumber');
-                    }
-                    // Navigator.push(context, MaterialPageRoute(builder: (context) => NextPage()));
+                    Navigator.of(context).pushNamed(
+                      '/register/VerificationPage',
+                      arguments: {
+                        'phone': _phoneNumber
+                      },
+                    );
                   }
                       : null, // 根据 _isNextButtonEnabled 决定是否禁用
                   label: const Text(

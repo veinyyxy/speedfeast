@@ -55,7 +55,7 @@ class MyApp extends StatelessWidget {
     );
     // 然后从SomeInitialScreen导航到MoreMainMenu
     // For demonstration, we'll keep MoreMainMenu as the root for now.
-    return MoreMainMenu();
+    //return MoreMainMenu();
   }
 }
 
