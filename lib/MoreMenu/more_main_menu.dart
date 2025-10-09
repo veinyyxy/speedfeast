@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../Controller/service_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -138,8 +140,8 @@ class MoreScreen extends StatelessWidget {
 
   // 退出登录按钮的点击响应函数
   void _onSignOut(BuildContext context) {
-    print('Sign out button clicked!');
-    // 这里可以添加实际的退出登录逻辑，比如清除用户数据、导航到登录页等。
+    final serviceProvider = context.read<ServiceProvider>();
+    serviceProvider.logoutUser();
   }
 
   @override

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Controller/service_provider.dart';
+import '../Controller/token_refresher.dart';
 
 import 'home_page_exclusive2.dart';
 import 'OrderPage/order_list_page.dart';
@@ -13,6 +14,7 @@ import 'Payment/payment_list_page.dart';
 import 'RegisterPage/sign_up_screen.dart';
 import 'RegisterPage/verification_page.dart';
 import 'RegisterPage/mobile_number_page.dart';
+import 'RegisterPage/base_info_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +22,9 @@ void main() async {
   await dotenv.load(fileName: "configs/.env");
   
   final serviceProvider = ServiceProvider();
-  await serviceProvider.loadConfig();
-  await serviceProvider.fetchInitData();
+  await serviceProvider.initialize();
+  //await serviceProvider.loadConfig();
+  //await serviceProvider.fetchInitData();
 
   runApp(
     ChangeNotifierProvider.value(
@@ -103,10 +106,27 @@ class MyApp extends StatelessWidget {
               return const Text('Error: Email or Phone argument not provided');
             }
             final String emailOrPhoneValue = emailAddress ?? phoneNumber!;
-            return VerificationPage(emailOrPhone: emailOrPhoneValue, type: emailAddress == null ? 'phone' : 'email');
+            return VerificationPage(emailOrPhone: emailOrPhoneValue,
+                type: emailAddress == null ? 'phone' : 'email',
+                onVerificationSuccess: () {
+                  debugPrint('------------------Verification successful!-----------------------');
+                  Navigator.pushNamed(context, '/register/base_info_page', arguments: {
+                    'email': emailAddress,
+                    'phone': phoneNumber,
+                  });
+                });
           }
           return const Text('Error: Invalid arguments for VerificationPage');
         },
+        '/register/base_info_page': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments;
+          if (args is Map<String, dynamic>) {
+            final String? emailAddress = args['email'] as String?;
+            final String? phoneNumber = args['phone'] as String?;
+            return BaseInfoPage(phoneNumber, emailAddress);
+          }
+          return const Text('Error: Invalid arguments for BaseInfoPage');
+        }
       },
       initialRoute: '/',
     );

@@ -25,6 +25,10 @@ class ServiceConfig {
     return '$name:$port${function['verifyVerificationCode']}';
   }
 
+  String getRegisterUrl() {
+    return '$name:$port${function['register']}';
+  }
+
   String getImagesRootUrl() {
     return '$name:$port';
   }
@@ -36,4 +40,5 @@ class ServiceConfig {
   String getProductListPath(){return function['getProductList'];}
   String getVerificationCodePath(){return function['sendVerificationCode'];}
   String verifyVerificationCodePath(){return function['verifyVerificationCode'];}
+  String getRegisterPath(){return function['register'];}
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Common/select_edit_box.dart';
+import '../Common/editable_field.dart'; // 导入 EditableField widget
+import '../Common/password_field.dart'; // 导入 PasswordField widget
 
 void main() {
   runApp(MyApp());
@@ -12,12 +14,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: PersonalInfoPage(),
-      /*theme: ThemeData(
-        primarySwatch: Colors.orange,
-        textTheme: TextTheme(
-          bodyMedium: TextStyle(color: Colors.black87),
-        ),
-      ),*/
+      // ... (theme 保持不变)
     );
   }
 }
@@ -30,10 +27,20 @@ class PersonalInfoPage extends StatefulWidget {
 }
 
 class PersonalInfoPageState extends State<PersonalInfoPage> {
+  // 定义密码字段的可见性状态
   bool _showOriginalPassword = false;
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
-  // 存储地址列表，包含 id 和地址信息
+
+  // Controllers for editable profile fields
+  final TextEditingController _firstNameController = TextEditingController(text: 'Ethan');
+  final TextEditingController _lastNameController = TextEditingController(text: 'Yang');
+  // Controllers for password fields
+  final TextEditingController _originalPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
+
   final List<Map<String, String>> _addresses = [
     {'id': 'home_address', 'label': 'Home', 'value': 'Ghelph St Manitoba MB'},
     {'id': 'work_address', 'label': 'Work', 'value': 'Grant Park St Manitoba MB'},
@@ -43,11 +50,19 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
   @override
   void initState() {
     super.initState();
-    // 默认选中“Home”地址
     _selectedAddressId = 'home_address';
   }
 
-  // 处理地址选择
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _originalPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   void _handleAddressSelection(String id) {
     setState(() {
       _selectedAddressId = id;
@@ -55,7 +70,6 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
     print('Selected address: $id');
   }
 
-  // 删除地址
   void _deleteAddress(String id) {
     setState(() {
       _addresses.removeWhere((address) => address['id'] == id);
@@ -101,9 +115,18 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              _buildTextField('First Name *', 'Ethan', true),
+              // 使用 EditableField widget
+              EditableField(
+                label: 'First Name *',
+                controller: _firstNameController,
+                isLocked: false, // 现在默认为 false，更符合编辑需求
+              ),
               SizedBox(height: 10),
-              _buildTextField('Last Name *', 'Yang', true),
+              EditableField(
+                label: 'Last Name *',
+                controller: _lastNameController,
+                isLocked: false,
+              ),
               SizedBox(height: 10),
               SelectEditBox(
                 key: const ValueKey('phone_number_field'),
@@ -130,11 +153,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              // 使用 ListView.builder 渲染可删除的地址列表
               ..._addresses.map((address) {
                 return Dismissible(
                   key: Key(address['id']!),
-                  direction: DismissDirection.endToStart, // 向左拖动删除
+                  direction: DismissDirection.endToStart,
                   onDismissed: (direction) {
                     _deleteAddress(address['id']!);
                   },
@@ -184,26 +206,48 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              _buildPasswordField('Original*', _showOriginalPassword, (value) {
-                setState(() {
-                  _showOriginalPassword = value;
-                });
-              }),
+              // 使用 PasswordField widget
+              PasswordField(
+                label: 'Original*',
+                controller: _originalPasswordController,
+                isVisible: _showOriginalPassword,
+                onToggle: (value) {
+                  setState(() {
+                    _showOriginalPassword = value;
+                  });
+                },
+              ),
               SizedBox(height: 10),
-              _buildPasswordField('New*', _showNewPassword, (value) {
-                setState(() {
-                  _showNewPassword = value;
-                });
-              }),
+              PasswordField(
+                label: 'New*',
+                controller: _newPasswordController,
+                isVisible: _showNewPassword,
+                onToggle: (value) {
+                  setState(() {
+                    _showNewPassword = value;
+                  });
+                },
+              ),
               SizedBox(height: 10),
-              _buildPasswordField('Confirm*', _showConfirmPassword, (value) {
-                setState(() {
-                  _showConfirmPassword = value;
-                });
-              }),
+              PasswordField(
+                label: 'Confirm*',
+                controller: _confirmPasswordController,
+                isVisible: _showConfirmPassword,
+                onToggle: (value) {
+                  setState(() {
+                    _showConfirmPassword = value;
+                  });
+                },
+              ),
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
+                  // Access updated values from controllers
+                  print('First Name: ${_firstNameController.text}');
+                  print('Last Name: ${_lastNameController.text}');
+                  print('Original Password: ${_originalPasswordController.text}');
+                  print('New Password: ${_newPasswordController.text}');
+                  print('Confirm Password: ${_confirmPasswordController.text}');
                   print('Update profile');
                 },
                 style: ElevatedButton.styleFrom(
@@ -225,34 +269,8 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
     );
   }
 
-  Widget _buildTextField(String label, String value, bool isLocked) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              Text(
-                value,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          if (isLocked) Icon(Icons.lock, color: Colors.grey[600]),
-        ],
-      ),
-    );
-  }
+  // _buildEditableTextField 函数已移除
+  // _buildPasswordField 函数已移除
 
   Widget _buildAddAddressButton() {
     return GestureDetector(
@@ -275,51 +293,6 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
             Icon(Icons.add, color: Colors.deepOrange),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPasswordField(String label, bool isVisible, Function(bool) onToggle) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              SizedBox(height: 1),
-              SizedBox(
-                width: 200,
-                child: TextField(
-                  obscureText: !isVisible,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: '********',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: Icon(
-              isVisible ? Icons.visibility : Icons.visibility_off,
-              color: Colors.grey[600],
-            ),
-            onPressed: () {
-              onToggle(!isVisible);
-            },
-          ),
-        ],
       ),
     );
   }

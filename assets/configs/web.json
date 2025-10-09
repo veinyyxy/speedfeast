@@ -7,7 +7,12 @@
     {
       "getProductList" : "/api/products/get_list",
       "sendVerificationCode" : "/api/verification/send_verification",
-      "verifyVerificationCode" : "/api/verification/verify"
+      "verifyVerificationCode" : "/api/verification/verify",
+      "register" : "/api/users/register",
+      "login" : "/api/users/login",
+      "logout" : "/api/users/logout",
+      "validate" : "/api/users/validate"
+
     }
   }
 

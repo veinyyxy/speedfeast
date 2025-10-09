@@ -7,7 +7,17 @@ import '../Controller/service_provider.dart';
 class VerificationPage extends StatefulWidget {
   final String emailOrPhone; // 传入的可以是电子邮件或电话号码
   final String type; // 传入的验证码类型 (email 或 phone)
-  const VerificationPage({super.key, required this.emailOrPhone, required this.type});
+  // 新增：验证成功后要执行的导航回调函数
+  // 使用 VoidCallback 是一个很好的选择，因为它不接受参数也不返回任何值，
+  // 仅表示一个要执行的动作。如果需要 Context，可以定义为 Function(BuildContext context)
+  final VoidCallback? onVerificationSuccess;
+
+  const VerificationPage({
+    super.key,
+    required this.emailOrPhone,
+    required this.type,
+    this.onVerificationSuccess, // 使其可选
+  });
 
   @override
   State<VerificationPage> createState() => _VerificationPageState();
@@ -26,7 +36,7 @@ class _VerificationPageState extends State<VerificationPage> {
   bool _isLoading = false; // 用于显示加载状态 (发送码或验证码时)
   String? _errorMessage; // 显示错误信息
   String? _successMessage; // 显示成功信息
-
+  Map<String, dynamic>? _tokenInfo;
   // 重发计时器相关
   Timer? _timer;
   int _countdownSeconds = 60; // 初始倒计时秒数
@@ -161,9 +171,14 @@ class _VerificationPageState extends State<VerificationPage> {
     final serviceProvider = context.read<ServiceProvider>();
 
     try {
-      // TODO: 调用service的验证码校验功能
-      bool res = await serviceProvider.verifyVerificationCode(widget.emailOrPhone, pin, widget.type);
+      bool res = await serviceProvider.verifyVerificationCode(
+          widget.emailOrPhone,
+          pin,
+          widget.type, resData: _tokenInfo = {});
       if(res){
+        String testToken = _tokenInfo!['token'];
+        serviceProvider.loginUser(testToken);
+        debugPrint('Token: $testToken');
         _successMessage = 'Verification successful!';
       }
       else
@@ -353,8 +368,14 @@ class _VerificationPageState extends State<VerificationPage> {
                   onPressed: isNextButtonEnabled // 根据 `isNextButtonEnabled` 动态启用/禁用
                       ? () {
                     debugPrint("Next button tapped after successful verification!");
-                    // TODO: 在这里执行导航到下一个页面的逻辑
-                    // 例如：Navigator.of(context).pushReplacementNamed('/set_new_password');
+                    // 调用传入的回调函数，而不是硬编码的导航
+                    if (widget.onVerificationSuccess != null) {
+                      widget.onVerificationSuccess!();
+                    } else {
+                      // 如果没有提供回调，可以做一些默认处理，比如导航回主页或打印警告
+                      //debugPrint("No onVerificationSuccess callback provided. Defaulting to pop.");
+                      //Navigator.of(context).pop();
+                    }
                   }
                       : null,
                   label: const Text(

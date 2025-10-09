@@ -87,29 +87,6 @@ class ApiService {
       throw AppException('An unexpected error occurred: $e');
     }
   }
-  /*Future<dynamic> get(String path, {String? queryParams, String? token}) async {
-    if (_baseUrl == null) {
-      throw AppException("Service base URL is not configured.");
-    }
-
-    final uri = Uri.parse(
-        '$_baseUrl$path${queryParams != null ? '?$queryParams' : ''}');
-
-    // 生成签名所需的 dataToSign 应该包含 queryParams
-    final Map<String, String> headers = _createRequestHeaders(queryParams);
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    try {
-      final response = await http.get(uri, headers: headers);
-      return _handleResponse(response);
-    } on http.ClientException catch (e) {
-      throw AppException('Network error: ${e.message}');
-    } catch (e) {
-      throw AppException('An unexpected error occurred: $e');
-    }
-  }*/
 
   // 通用 POST 请求 (示例，如果你有 POST 请求)
   Future<dynamic> post(String path, Map<String, dynamic> body,

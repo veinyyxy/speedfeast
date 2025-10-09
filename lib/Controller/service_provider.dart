@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../Common/service_config.dart';
 import 'api_service.dart';
+import '../Security/collect_features.dart';
 
 class ServiceProvider with ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -22,8 +22,35 @@ class ServiceProvider with ChangeNotifier {
   ServiceConfig? get config => _config;
   String? get userToken => _userToken;
 
+  Map<String, String> features = {};
+  bool _isInitialized = false;
+
   ServiceProvider() {
     _loadUserStatus();
+  }
+
+  // ** 4. 新增异步初始化方法 **
+  Future<void> initialize() async {
+    if (_isInitialized) return; // 防止重复初始化
+
+    debugPrint('ServiceProvider initialization started.');
+
+    // 调用 collectFeatures() 并等待结果
+    features = await collectFeatures();
+    debugPrint('Security features collected: $features');
+
+    // 加载用户状态 (此方法内部有 await)
+    await _loadUserStatus();
+
+    // 加载配置 (此方法内部有 await)
+    await loadConfig();
+
+    // 初始化完成后，可以尝试获取初始化数据
+    await fetchInitData();
+
+    _isInitialized = true;
+    notifyListeners();
+    debugPrint('ServiceProvider initialization finished.');
   }
 
   // --- 用户状态管理 ---
@@ -81,7 +108,7 @@ class ServiceProvider with ChangeNotifier {
       );
       _initData = responseData;
       notifyListeners();
-      debugPrint('Initial data fetched: $_initData');
+      //debugPrint('Initial data fetched: $_initData');
     } on AppException catch (e) {
       debugPrint('Error fetching init data: ${e.message}');
     } catch (e) {
@@ -127,7 +154,8 @@ class ServiceProvider with ChangeNotifier {
   }
 
   // 修改 verifyVerificationCode 返回 Future<bool> (同样遵循 success 字段)
-  Future<bool> verifyVerificationCode(String emailOrPhone, String code, String type) async {
+  Future<bool> verifyVerificationCode(String emailOrPhone, String code, String type
+      , {Map<String, dynamic>? resData}) async {
     if (_config == null) {
       debugPrint('Config not loaded yet for verifyVerificationCode.');
       return false;
@@ -148,10 +176,7 @@ class ServiceProvider with ChangeNotifier {
 
       if (responseData['success'] == true) {
         debugPrint('Verification successful: ${responseData['message']}');
-        // 如果验证成功，并且 API 返回了 token，则可以在这里调用 loginUser
-        // if (responseData['token'] != null) {
-        //   await loginUser(responseData['token']);
-        // }
+        resData?.addAll(responseData);
         return true; // 服务器指示成功
       } else {
         // 即使 HTTP 状态码是 200，但服务器业务逻辑指示失败
@@ -164,6 +189,50 @@ class ServiceProvider with ChangeNotifier {
       return false;
     } catch (e) {
       debugPrint('An unexpected error occurred while verifying verification code: $e');
+      return false;
+    }
+  }
+
+  // 新增：提交注册信息功能
+  Future<bool> registerUser(String username, String phone, String email, String password) async {
+    if (_config == null) {
+      debugPrint('Config not loaded yet for registerUser.');
+      return false;
+    }
+
+    final Map<String, dynamic> requestBody = {
+      'username': username,
+      'cell_phone': phone,
+      'email': email,
+      'password': password,
+      // 如果后端需要确认密码，可以添加 'confirmPassword': password
+    };
+
+    try {
+      // 注册通常不需要用户Token，因为它发生在登录之前
+      final rawResponse = await _apiService.post(
+        _config!.getRegisterPath(), // 使用新的注册接口路径
+        requestBody, // 将请求体传递给post方法
+        token: _userToken // 注册通常不需要token
+      );
+
+      final Map<String, dynamic> responseData = rawResponse as Map<String, dynamic>;
+
+      if (responseData['success'] == true) {
+        debugPrint('Registration successful: ${responseData['message']}');
+        // 注册成功后，你可能需要自动登录用户或引导他们登录
+        // 例如：loginUser(responseData['token'] as String);
+        return true;
+      } else {
+        String errorMessage = responseData['message']?.toString() ?? 'Server indicated registration failed.';
+        debugPrint('Server indicated failure during registration: $errorMessage');
+        return false;
+      }
+    } on AppException catch (e) {
+      debugPrint('Error during user registration: ${e.message}');
+      return false;
+    } catch (e) {
+      debugPrint('An unexpected error occurred during user registration: $e');
       return false;
     }
   }

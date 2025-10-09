@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
-// 现在 secretKey 的值就是 'YOUR_SUPER_SECRET_KEY_FROM_ENV'
-// 共享的秘密密钥，必须和服务端一致
+/// 现在 secretKey 的值就是 'YOUR_SUPER_SECRET_KEY_FROM_ENV'
+/// 共享的秘密密钥，必须和服务端一致
 /**
  * 使用 HMAC-SHA256 算法生成消息认证码
  * @param String data - 要签名的数据 (例如：JSON字符串)
  * @returns String - Base64 编码的 HMAC 签名
  */
+
 String generateSignature(String data, String secretKey) {
   // 1. 密钥转为字节
   List<int> keyBytes = utf8.encode(secretKey);
@@ -65,10 +67,14 @@ Map<String, String> makeRequestHeader(String clientID, String secretKey,
     paramsString = jsonEncode(queryParameters);
   }
 
-  print("++++++++++++++normalizeQueryParameters:$paramsString");
+  if (kDebugMode) {
+    print("++++++++++++++normalizeQueryParameters:$paramsString");
+  }
   // 2. 构造签名所需的数据
   String data = '$clientID-$timestamp-$nonce-$paramsString';
-  print("++++++++++++++data:$data");
+  if (kDebugMode) {
+    print("++++++++++++++data:$data");
+  }
   // 3. 生成签名
   final signature = generateSignature(data, secretKey);
 
