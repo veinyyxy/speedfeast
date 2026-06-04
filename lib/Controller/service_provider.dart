@@ -61,13 +61,69 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loginUser(String token) async {
+  Future<void> saveUserToken(String token) async {
     await _secureStorage.write(key: 'user_token', value: token);
     _userToken = token;
     _isLoggedIn = true;
     notifyListeners();
     debugPrint('User logged in. Token stored securely.');
     await fetchInitData();
+  }
+
+  Future<bool> loginUser({
+    String? username,
+    String? cellPhone,
+    required String password,
+  }) async {
+    if (_config == null) {
+      debugPrint('Config not loaded yet for loginUser.');
+      return false;
+    }
+    if ((username == null || username.isEmpty) &&
+        (cellPhone == null || cellPhone.isEmpty)) {
+      debugPrint('Login failed: username or cell phone is required.');
+      return false;
+    }
+
+    final Map<String, dynamic> requestBody = {
+      'password': password,
+      if (username != null && username.isNotEmpty) 'username': username,
+      if (cellPhone != null && cellPhone.isNotEmpty) 'cell_phone': cellPhone,
+    };
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.getLoginPath(),
+        requestBody,
+      );
+      final Map<String, dynamic> responseData =
+          rawResponse as Map<String, dynamic>;
+
+      if (responseData['success'] == true) {
+        final token = responseData['token']?.toString();
+        if (token == null || token.isEmpty) {
+          debugPrint('Login failed: server did not return a token.');
+          return false;
+        }
+
+        await saveUserToken(token);
+        debugPrint('Login successful: ${responseData['message']}');
+        return true;
+      }
+
+      final errorMessage =
+          responseData['error']?.toString() ??
+          responseData['message']?.toString() ??
+          'Server indicated login failed.';
+      debugPrint('Server indicated login failure: $errorMessage');
+      return false;
+    } on AppException catch (e) {
+      debugPrint('Error during user login: ${e.message}');
+      return false;
+    } catch (e) {
+      debugPrint('An unexpected error occurred during user login: $e');
+      return false;
+    }
   }
 
   Future<void> logoutUser() async {

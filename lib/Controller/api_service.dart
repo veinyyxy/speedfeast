@@ -1,10 +1,7 @@
 // lib/Service/api_service.dart
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // 用于获取 HMAC 密钥等
-import 'dart:math';
-import 'package:crypto/crypto.dart';
 import 'package:speedfeast/Security/make_request_header.dart';
 
 // 自定义异常类

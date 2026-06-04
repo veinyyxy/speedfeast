@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'Common/reward_widget.dart';
 import 'Common/product_category_list.dart';
 import 'Controller/service_provider.dart';
+import 'RegisterPage/phone_login_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -119,6 +120,15 @@ class _HomePageState extends State<HomePage> {
                   Navigator.of(context).pushNamed('register/mobile_number_page');
                   //Navigator.of(context).pushNamed('/register/sign_up_screen');
                 },
+              ),ElevatedButton(
+                child: const Text('Login Now'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(); // 关闭对话框
+                  // 导航到注册页面
+                  // 假设您有一个名为 '/register' 的路由
+                  showLoginDialog(context);
+                  //Navigator.of(context).pushNamed('/register/sign_up_screen');
+                },
               ),
             ],
           );
@@ -157,7 +167,7 @@ class _HomePageState extends State<HomePage> {
         Navigator.pushNamed(context, '/order_page');
         break;
       case 2:
-        print('Scan tapped!');
+        //print('Scan tapped!');
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('您点击了：扫码'))
         );
@@ -215,13 +225,13 @@ class _HomePageState extends State<HomePage> {
                 margin: const EdgeInsets.symmetric(vertical: 8.0),
                 decoration: BoxDecoration(
                   // corrected `withValues` to `withOpacity`
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.search, color: Colors.white),
                   onPressed: () {
-                    print('Search button tapped!');
+                    //print('Search button tapped!');
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('搜索功能待实现'))
                     );
@@ -234,13 +244,13 @@ class _HomePageState extends State<HomePage> {
                     right: 8.0),
                 decoration: BoxDecoration(
                   // corrected `withValues` to `withOpacity`
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.more_vert, color: Colors.white),
                   onPressed: () {
-                    print('More options button tapped!');
+                    //print('More options button tapped!');
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('更多选项待实现'))
                     );
@@ -333,7 +343,7 @@ class _HomePageState extends State<HomePage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               spreadRadius: 2,
               blurRadius: 10,
               offset: const Offset(0, -2),

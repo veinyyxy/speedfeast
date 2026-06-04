@@ -177,7 +177,7 @@ class _VerificationPageState extends State<VerificationPage> {
           widget.type, resData: _tokenInfo = {});
       if(res){
         String testToken = _tokenInfo!['token'];
-        serviceProvider.loginUser(testToken);
+        serviceProvider.saveUserToken(testToken);
         debugPrint('Token: $testToken');
         _successMessage = 'Verification successful!';
       }

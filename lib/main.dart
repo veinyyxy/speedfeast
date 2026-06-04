@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Controller/service_provider.dart';
-import '../Controller/token_refresher.dart';
 
 import 'home_page_exclusive2.dart';
 import 'OrderPage/order_list_page.dart';
@@ -126,7 +125,7 @@ class MyApp extends StatelessWidget {
             return BaseInfoPage(phoneNumber, emailAddress);
           }
           return const Text('Error: Invalid arguments for BaseInfoPage');
-        }
+        },
       },
       initialRoute: '/',
     );

@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        iconTheme: IconThemeData(color: Colors.deepOrange),
+        iconTheme: const IconThemeData(color: Colors.deepOrange),
         buttonTheme: ButtonThemeData(
           buttonColor: Colors.deepOrange,
           textTheme: ButtonTextTheme.primary,
@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
         // 如果你需要按钮、浮动操作按钮等也使用 DeepOrange
         // colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.deepOrange),
       ),
-      home: MoreMainMenu(), // 或一个主页
+      home: const MoreMainMenu(), // 或一个主页
     );
     // 然后从SomeInitialScreen导航到MoreMainMenu
     // For demonstration, we'll keep MoreMainMenu as the root for now.
@@ -144,6 +144,10 @@ class MoreScreen extends StatelessWidget {
     serviceProvider.logoutUser();
   }
 
+  void _onSignIn(BuildContext context) {
+    Navigator.pushNamed(context, '/register_page/sign_up');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -197,22 +201,19 @@ class MoreScreen extends StatelessWidget {
             child: SizedBox(
               width: double.infinity,
               height: 50.0,
-              child: OutlinedButton(
-                onPressed: () => _onSignOut(context), // 绑定退出登录函数
-                /*style: OutlinedButton.styleFrom(
-                  side: const BorderSide(*//*color: Colors.deepOrange, *//*width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25.0),
-                  ),
-                  //backgroundColor: Colors.white,
-                ),*/
-                child: const Text(
-                  'Sign out',
-                  style: TextStyle(
-                    fontSize: 18.0,
-                    //color: Colors.deepOrange,
-                  ),
-                ),
+              child: Consumer<ServiceProvider>(
+                builder: (context, serviceProvider, child) {
+                  final bool isLoggedIn = serviceProvider.isLoggedIn;
+                  return OutlinedButton(
+                    onPressed: () => isLoggedIn ? _onSignOut(context) : _onSignIn(context),
+                    child: Text(
+                      isLoggedIn ? 'Sign out' : 'Sign In / Sign Up',
+                      style: const TextStyle(
+                        fontSize: 18.0,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
