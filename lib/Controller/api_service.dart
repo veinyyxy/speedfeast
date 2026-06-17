@@ -1,5 +1,6 @@
 // lib/Service/api_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // 用于获取 HMAC 密钥等
 import 'package:speedfeast/Security/make_request_header.dart';
@@ -23,17 +24,31 @@ class ApiService {
   final String _clientID;
 
   ApiService(this._baseUrl)
-      : _secretKeyHMAC = dotenv.env['HMAC_SECRET_KEY'] ?? '',
-        _clientID = dotenv.env['CLIENT_ID'] ?? '';
+    : _secretKeyHMAC = dotenv.env['HMAC_SECRET_KEY'] ?? '',
+      _clientID = dotenv.env['CLIENT_ID'] ?? '';
 
   // 内部辅助方法：创建 HMAC 签名头部
-  Map<String, String> _createRequestHeaders(Map<String, dynamic>? queryParameters, int type) {
+  Map<String, String> _createRequestHeaders(
+    Map<String, dynamic>? queryParameters,
+    int type,
+  ) {
     if (_secretKeyHMAC.length < 5 || _clientID.length < 5) {
       throw AppException(
-          "Security keys (HMAC_SECRET_KEY or CLIENT_ID) are not configured properly.");
+        "Security keys (HMAC_SECRET_KEY or CLIENT_ID) are not configured properly.",
+      );
     }
 
     return makeRequestHeader(_clientID, _secretKeyHMAC, queryParameters, type);
+  }
+
+  Map<String, String>? _stringifyQueryParameters(
+    Map<String, dynamic>? queryParameters,
+  ) {
+    if (queryParameters == null) return null;
+
+    return queryParameters.map(
+      (key, value) => MapEntry(key, value?.toString() ?? ''),
+    );
   }
 
   // **辅助函数：获取签名（假设这个函数存在于 make_request_header.dart 或类似地方）**
@@ -57,20 +72,32 @@ class ApiService {
   }*/
 
   // 通用 GET 请求
-  Future<dynamic> get(String path, {Map<String, dynamic>? queryParameters, String? token}) async {
+  Future<dynamic> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    String? token,
+  }) async {
     if (_baseUrl == null) {
       throw AppException("Service base URL is not configured.");
     }
 
+    final normalizedQueryParameters = _stringifyQueryParameters(
+      queryParameters,
+    );
+
     // 1. 使用 Uri.https/http 构造函数安全地处理查询参数
     // Uri 类会自动对 Map 中的键和值进行 URL 编码
-    final uri = Uri.parse('$_baseUrl$path')
-        .replace(queryParameters: queryParameters);
-    print("---------------uri:$uri");
+    final uri = Uri.parse(
+      '$_baseUrl$path',
+    ).replace(queryParameters: normalizedQueryParameters);
+    debugPrint("---------------uri:$uri");
     // 注意：_createRequestHeaders(queryParams) 中的 queryParams 也需要相应修改
     // 如果你的签名逻辑需要原始的 query string，你可能需要单独处理
     // 这里假设签名逻辑需要的是 Map<String, dynamic>
-    final Map<String, String> headers = _createRequestHeaders(queryParameters, 0);
+    final Map<String, String> headers = _createRequestHeaders(
+      normalizedQueryParameters,
+      0,
+    );
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -80,14 +107,19 @@ class ApiService {
       return _handleResponse(response);
     } on http.ClientException catch (e) {
       throw AppException('Network error: ${e.message}');
+    } on AppException {
+      rethrow;
     } catch (e) {
       throw AppException('An unexpected error occurred: $e');
     }
   }
 
   // 通用 POST 请求 (示例，如果你有 POST 请求)
-  Future<dynamic> post(String path, Map<String, dynamic> body,
-      {String? token}) async {
+  Future<dynamic> post(
+    String path,
+    Map<String, dynamic> body, {
+    String? token,
+  }) async {
     if (_baseUrl == null) {
       throw AppException("Service base URL is not configured.");
     }
@@ -98,7 +130,9 @@ class ApiService {
     // 生成签名所需的 dataToSign 应该包含 encodedBody
     // 这可能需要修改 generateSignature 来处理请求体
     final Map<String, String> headers = _createRequestHeaders(
-        body, 1); // 假设签名也包含了body
+      body,
+      1,
+    ); // 假设签名也包含了body
     headers['Content-Type'] = 'application/json';
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
@@ -106,10 +140,15 @@ class ApiService {
 
     try {
       final response = await http.post(
-          uri, headers: headers, body: encodedBody);
+        uri,
+        headers: headers,
+        body: encodedBody,
+      );
       return _handleResponse(response);
     } on http.ClientException catch (e) {
       throw AppException('Network error: ${e.message}');
+    } on AppException {
+      rethrow;
     } catch (e) {
       throw AppException('An unexpected error occurred: $e');
     }
@@ -127,18 +166,29 @@ class ApiService {
       if (response.body.isNotEmpty) {
         try {
           final errorData = jsonDecode(response.body);
-          errorMessage = errorData['message'] ?? errorMessage;
+          if (errorData is Map<String, dynamic>) {
+            errorMessage =
+                errorData['message']?.toString() ??
+                errorData['error']?.toString() ??
+                errorMessage;
+          } else {
+            errorMessage = response.body;
+          }
         } catch (_) {
           errorMessage = response.body;
         }
       }
       throw AppException(errorMessage, statusCode: response.statusCode);
     } else if (response.statusCode >= 500) {
-      throw AppException('Server error (Status: ${response.statusCode})',
-          statusCode: response.statusCode);
+      throw AppException(
+        'Server error (Status: ${response.statusCode})',
+        statusCode: response.statusCode,
+      );
     } else {
-      throw AppException('Unknown error (Status: ${response.statusCode})',
-          statusCode: response.statusCode);
+      throw AppException(
+        'Unknown error (Status: ${response.statusCode})',
+        statusCode: response.statusCode,
+      );
     }
   }
 }

@@ -18,6 +18,7 @@ class ProductCard extends StatefulWidget { // 保持 StatefulWidget 以便处理
   final double? height;
   final Function(int count)? onQuantityChanged; // 父组件关心的数量变化
   final int initialCartCount; // 新增：传递给按钮的初始数量
+  final bool framed;
 
   const ProductCard({
     super.key,
@@ -28,6 +29,7 @@ class ProductCard extends StatefulWidget { // 保持 StatefulWidget 以便处理
     required this.height,
     this.onQuantityChanged,
     this.initialCartCount = 0, // 默认为0
+    this.framed = false,
   });
 
   @override
@@ -51,8 +53,25 @@ class _ProductCardState extends State<ProductCard> {
     return Container(
       width: widget.width,
       margin: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: widget.framed ? const EdgeInsets.all(5.0) : EdgeInsets.zero,
+      decoration: widget.framed
+          ? BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            )
+          : null,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,        children: [
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Stack(
           children: [
             GestureDetector(
@@ -66,7 +85,7 @@ class _ProductCardState extends State<ProductCard> {
                 borderRadius: BorderRadius.circular(10),
                 child: Image.asset(
                   widget.imagePath,
-                  width: widget.width,
+                  width: double.infinity,
                   height: widget.height,
                   fit: BoxFit.cover,
                 ),
@@ -92,14 +111,17 @@ class _ProductCardState extends State<ProductCard> {
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: widget.framed ? 3 : 4),
         ...widget.descriptions.map((desc) {
           final defaultTextStyle = DefaultTextStyle.of(context).style;
+          final textStyle = desc.style ?? defaultTextStyle;
           return Padding(
-            padding: const EdgeInsets.only(bottom: 2.0),
+            padding: EdgeInsets.only(bottom: widget.framed ? 1.0 : 2.0),
             child: Text(
               desc.text,
-              style: desc.style ?? defaultTextStyle,
+              style: widget.framed ? textStyle.copyWith(height: 1.1) : textStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           );
         }),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'Common/reward_widget.dart';
+//import 'Common/reward_widget.dart';
 import 'Common/product_category_list.dart';
 
 class HomePage extends StatefulWidget {

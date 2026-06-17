@@ -11,7 +11,20 @@
       "register" : "/api/users/register",
       "login" : "/api/users/login",
       "logout" : "/api/users/logout",
-      "validate" : "/api/users/validate"
+      "validate" : "/api/user/validate",
+      "createOrder" : "/api/orders/create",
+      "listRecentOrders" : "/api/orders/get_list",
+      "getPersonalInfo" : "/api/users/profile/get",
+      "updatePersonalInfo" : "/api/users/profile/update",
+      "createAddress" : "/api/users/address/create",
+      "updateAddress" : "/api/users/address/update",
+      "deleteAddress" : "/api/users/address/delete",
+      "setDefaultAddress" : "/api/users/address/default",
+      "listPaymentMethods" : "/api/payment-methods/list",
+      "saveCardPaymentMethod" : "/api/payment-methods/card/save",
+      "savePaypalPaymentMethod" : "/api/payment-methods/paypal/save",
+      "deletePaymentMethod" : "/api/payment-methods/delete",
+      "setDefaultPaymentMethod" : "/api/payment-methods/default"
 
     }
   }

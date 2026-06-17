@@ -20,12 +20,14 @@ class HorizontalScrollSection extends StatefulWidget {
   final String title;
   final List<ProductItemData> items; // 使用数据模型列表，而不是简单的图片路径列表
   final VoidCallback? onViewMore; // 添加一个“查看更多”的回调函数
+  final bool compact;
 
   const HorizontalScrollSection({
     super.key,
     required this.title,
     required this.items,
     this.onViewMore,
+    this.compact = false,
   });
 
   @override
@@ -103,18 +105,24 @@ class _HorizontalScrollSectionState extends State<HorizontalScrollSection> {
       return const SizedBox.shrink();
     }
 
+    final sectionPadding = widget.compact ? 8.0 : 16.0;
+    final listHeight = widget.compact ? 164.0 : 220.0;
+    final cardWidth = widget.compact ? 128.0 : 150.0;
+    final imageHeight = widget.compact ? 108.0 : 150.0;
+    final itemGap = widget.compact ? 8.0 : 12.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: EdgeInsets.symmetric(horizontal: sectionPadding),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 widget.title,
-                style: const TextStyle(
-                  fontSize: 18,
+                style: TextStyle(
+                  fontSize: widget.compact ? 15 : 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -130,16 +138,16 @@ class _HorizontalScrollSectionState extends State<HorizontalScrollSection> {
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: widget.compact ? 4 : 8),
         Stack(
           children: [
             SizedBox(
-              height: 220, // 你可以根据ProductCard的高度进行调整
+              height: listHeight, // 你可以根据ProductCard的高度进行调整
               child: ListView.builder(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 itemCount: widget.items.length,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0), // 给ListView一些内边距
+                padding: EdgeInsets.symmetric(horizontal: sectionPadding), // 给ListView一些内边距
                 itemBuilder: (context, index) {
                   final item = widget.items[index];
 
@@ -153,15 +161,17 @@ class _HorizontalScrollSectionState extends State<HorizontalScrollSection> {
                       item.productName,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    TextDescription(
-                      item.price,
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16),
-                    ),
+                    if (!widget.compact)
+                      TextDescription(
+                        item.price,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16),
+                      ),
                   ];
 
                   // 为每个卡片添加右边距，除了最后一个
                   return Padding(
-                    padding: EdgeInsets.only(right: index == widget.items.length - 1 ? 0 : 12.0),
+                    padding: EdgeInsets.only(
+                        right: index == widget.items.length - 1 ? 0 : itemGap),
                     child: ProductCard(
                       imagePath: item.imagePath,
                       descriptions: productDescriptions,
@@ -170,8 +180,9 @@ class _HorizontalScrollSectionState extends State<HorizontalScrollSection> {
                           print('${item.productName} quantity changed to: $count');
                         }
                       },
-                      width: 150, // 定义卡片的宽度
-                      height: 150, // 定义图片的高度
+                      width: cardWidth, // 定义卡片的宽度
+                      height: imageHeight, // 定义图片的高度
+                      framed: widget.compact,
                     ),
                   );
                 },

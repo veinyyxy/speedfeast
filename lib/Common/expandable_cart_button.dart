@@ -27,6 +27,18 @@ class _ExpandableCartButtonState extends State<ExpandableCartButton> {
     _isExpanded = _itemCount > 0;
   }
 
+  @override
+  void didUpdateWidget(covariant ExpandableCartButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialCount != widget.initialCount &&
+        widget.initialCount != _itemCount) {
+      setState(() {
+        _itemCount = widget.initialCount;
+        _isExpanded = _itemCount > 0;
+      });
+    }
+  }
+
   void _increment() {
     setState(() {
       _itemCount++;

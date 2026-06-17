@@ -19,6 +19,9 @@ class _HomePageState extends State<HomePage> {
   Color _appBarColor = Colors.transparent;
   int _selectedIndex = 0;
 
+  // 购物车按钮位置
+  Offset? _fabPosition;
+
   // 新增：一个用于存储动态生成 widget 列表的状态变量
   final List<Widget> _dynamicSliverWidgets = [];
   bool _isInitDataLoaded = false; // 用于确保 didChangeDependencies 中的逻辑只运行一次
@@ -54,14 +57,21 @@ class _HomePageState extends State<HomePage> {
             List<Product2ItemData> items = [];
             for (var itemDataDynamic in productListDynamic) {
               if (itemDataDynamic is Map<String, dynamic>) {
+                final productId = itemDataDynamic['product_id']?.toString() ?? '';
+                if (productId.isEmpty || productId.toLowerCase() == 'null') {
+                  continue;
+                }
                 // 根据你的JSON结构，提取对应的数据
                 items.add(Product2ItemData(
-                  id: itemDataDynamic['product_id'] as String,
-                  name: itemDataDynamic['product_name'] as String,
-                  price: itemDataDynamic['base_price'] as String,
-                  description: itemDataDynamic['description'] as String,
-                  imageUrl: serviceProvider.fetchImageRoot()
-                      + itemDataDynamic['image_url'] as String?, // imageUrl可能为null
+                  id: productId,
+                  name: itemDataDynamic['product_name']?.toString() ??
+                      'Unnamed product',
+                  price: itemDataDynamic['base_price']?.toString() ?? '0',
+                  description: itemDataDynamic['description']?.toString() ?? '',
+                  imageUrl: itemDataDynamic['image_url'] != null
+                      ? serviceProvider.fetchImageRoot() +
+                          itemDataDynamic['image_url'].toString()
+                      : null,
                 ));
               }
             }
@@ -80,8 +90,13 @@ class _HomePageState extends State<HomePage> {
       }
 
       _isInitDataLoaded = true;
-      // 如果需要在数据加载后立即更新UI，可以调用setState，但通常didChangeDependencies后会紧跟build，所以可能不需要
-      // setState(() {});
+    }
+
+    // 初始化按钮位置（如果尚未设置）
+    if (_fabPosition == null) {
+      final size = MediaQuery.of(context).size;
+      // 默认位置：右下角，避开底部导航栏
+      _fabPosition = Offset(size.width - 100, size.height - 220);
     }
   }
 
@@ -89,10 +104,6 @@ class _HomePageState extends State<HomePage> {
     // 使用 Provider 获取 ServiceProvider 实例
     final serviceProvider = Provider.of<ServiceProvider>(context, listen: false);
 
-    // TODO: 在 ServiceProvider 中实现一个方法来检查用户是否已登录。
-    // 例如：bool isLoggedIn = serviceProvider.isUserLoggedIn();
-    // 这是一个示例，您需要根据您的 ServiceProvider 实际逻辑来判断。
-    // 假设 ServiceProvider 有一个 `isLoggedIn` 属性或方法。
     final bool isLoggedIn = serviceProvider.isLoggedIn; // 替换为您的实际检查逻辑
 
     if (!isLoggedIn) {
@@ -116,18 +127,13 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {
                   Navigator.of(dialogContext).pop(); // 关闭对话框
                   // 导航到注册页面
-                  // 假设您有一个名为 '/register' 的路由
                   Navigator.of(context).pushNamed('register/mobile_number_page');
-                  //Navigator.of(context).pushNamed('/register/sign_up_screen');
                 },
               ),ElevatedButton(
                 child: const Text('Login Now'),
                 onPressed: () {
                   Navigator.of(dialogContext).pop(); // 关闭对话框
-                  // 导航到注册页面
-                  // 假设您有一个名为 '/register' 的路由
                   showLoginDialog(context);
-                  //Navigator.of(context).pushNamed('/register/sign_up_screen');
                 },
               ),
             ],
@@ -167,7 +173,6 @@ class _HomePageState extends State<HomePage> {
         Navigator.pushNamed(context, '/order_page');
         break;
       case 2:
-        //print('Scan tapped!');
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('您点击了：扫码'))
         );
@@ -178,11 +183,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // 您的 createWidgets 方法现在可以简化，因为它不再需要从 Provider 获取数据
-  // 它的作用是返回一个特定的 widget，而不是整个列表
-  // 不过，SliverChildBuilderDelegate 期望每个 index 返回一个 widget，而不是一个 List<Widget>
-  // 所以你可能需要调整你的 SliverList 策略
-  // 假设你的 _dynamicSliverWidgets 已经包含了所有需要展示的列表项
   Widget _buildSliverListItem(BuildContext context, int index) {
     if (index < _dynamicSliverWidgets.length) {
       return _dynamicSliverWidgets[index];
@@ -193,149 +193,192 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 如果你需要在 build 方法中监听 ServiceProvider 的变化并重建 UI，
-    // 你可以在这里使用 context.watch，但通常不建议频繁地在 build 方法的顶层做复杂的逻辑
-    // final data = context.watch<ServiceProvider>().initData;
+    final cartCount = context.watch<ServiceProvider>().cartCount;
 
     return Scaffold(
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: <Widget>[
-          SliverAppBar(
-            backgroundColor: _appBarColor,
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarIconBrightness: _appBarColor.computeLuminance() > 0.5
-                  ? Brightness.dark
-                  : Brightness.light,
-            ),
-            expandedHeight: 200.0,
-            shadowColor: Colors.black,
-            floating: false,
-            pinned: true,
-            elevation: 4.0,
-            forceElevated: true,
-            leading: Image.asset('assets/images/log.png'),
-            title: Text(
-                'SpeedFeast',
-                style: TextStyle(color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold)),
-            actions: <Widget>[
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 8.0),
-                decoration: BoxDecoration(
-                  // corrected `withValues` to `withOpacity`
-                  color: Colors.black.withValues(alpha: 0.25),
-                  shape: BoxShape.circle,
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            slivers: <Widget>[
+              SliverAppBar(
+                backgroundColor: _appBarColor,
+                systemOverlayStyle: SystemUiOverlayStyle(
+                  statusBarIconBrightness: _appBarColor.computeLuminance() > 0.5
+                      ? Brightness.dark
+                      : Brightness.light,
                 ),
-                child: IconButton(
-                  icon: const Icon(Icons.search, color: Colors.white),
-                  onPressed: () {
-                    //print('Search button tapped!');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('搜索功能待实现'))
-                    );
-                  },
-                  tooltip: 'Search',
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 8.0).copyWith(
-                    right: 8.0),
-                decoration: BoxDecoration(
-                  // corrected `withValues` to `withOpacity`
-                  color: Colors.black.withValues(alpha: 0.25),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
-                  onPressed: () {
-                    //print('More options button tapped!');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('更多选项待实现'))
-                    );
-                  },
-                  tooltip: 'More options',
-                ),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  Image.asset(
-                    'assets/images/sushi.jpg',
-                    fit: BoxFit.cover,
-                  ),
-                  const DecoratedBox(
+                expandedHeight: 200.0,
+                shadowColor: Colors.black,
+                floating: false,
+                pinned: true,
+                elevation: 4.0,
+                forceElevated: true,
+                leading: Image.asset('assets/images/log.png'),
+                title: const Text(
+                    'SpeedFeast',
+                    style: TextStyle(color: Colors.black,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold)),
+                actions: <Widget>[
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8.0),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black45,
-                        ],
-                        stops: [0.5, 1.0],
-                      ),
+                      color: Colors.black.withValues(alpha: 0.25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.search, color: Colors.white),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('搜索功能待实现'))
+                        );
+                      },
+                      tooltip: 'Search',
                     ),
                   ),
-                  Positioned(
-                    bottom: 16.0,
-                    left: 16.0,
-                    right: 16.0,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const <Widget>[
-                        Text(
-                          'Welcome to SpeedFeast Restaurant',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22.0,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 3.0,
-                                color: Colors.black,
-                                offset: Offset(1.0, 1.0),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 8.0),
-                        Text(
-                          '体验极速美食与温馨氛围的完美结合，让您的味蕾享受非凡之旅。',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14.0,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 3.0,
-                                color: Colors.black,
-                                offset: Offset(1.0, 1.0),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8.0).copyWith(
+                        right: 8.0),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('更多选项待实现'))
+                        );
+                      },
+                      tooltip: 'More options',
                     ),
                   ),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      Image.asset(
+                        'assets/images/sushi.jpg',
+                        fit: BoxFit.cover,
+                      ),
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black45,
+                            ],
+                            stops: [0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 16.0,
+                        left: 16.0,
+                        right: 16.0,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const <Widget>[
+                            Text(
+                              'Welcome to SpeedFeast Restaurant',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22.0,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 3.0,
+                                    color: Colors.black,
+                                    offset: Offset(1.0, 1.0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '体验极速美食与温馨氛围的完美结合，让您的味蕾享受非凡之旅。',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14.0,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 3.0,
+                                    color: Colors.black,
+                                    offset: Offset(1.0, 1.0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                      (BuildContext context, int index) {
+                    return _buildSliverListItem(context, index);
+                  },
+                  childCount: _dynamicSliverWidgets.length,
+                ),
+              ),
+            ],
+          ),
+          if (cartCount > 0 && _fabPosition != null)
+            Positioned(
+              left: _fabPosition!.dx,
+              top: _fabPosition!.dy,
+              child: Draggable(
+                feedback: Opacity(
+                  opacity: 0.8,
+                  child: FloatingActionButton.extended(
+                    onPressed: null,
+                    backgroundColor: Colors.deepOrange,
+                    icon: const Icon(Icons.shopping_cart, color: Colors.white),
+                    label: Text(
+                      '$cartCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                childWhenDragging: Container(),
+                onDragEnd: (details) {
+                  setState(() {
+                    // 这里直接使用 details.offset 可能会有小的偏差（取决于 AppBar 高度等），
+                    // 但在大部分全屏 Scaffold 中表现良好。
+                    _fabPosition = details.offset;
+                  });
+                },
+                child: FloatingActionButton.extended(
+                  heroTag: 'draggable_cart_fab',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/order_page');
+                  },
+                  backgroundColor: Colors.deepOrange,
+                  icon: const Icon(Icons.shopping_cart, color: Colors.white),
+                  label: Text(
+                    '$cartCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (BuildContext context, int index) {
-                // 现在 SliverList 使用 _dynamicSliverWidgets 来构建子项
-                return _buildSliverListItem(context, index);
-              },
-              // childCount 取决于 _dynamicSliverWidgets 的长度
-              childCount: _dynamicSliverWidgets.length,
-            ),
-          ),
         ],
       ),
       bottomNavigationBar: Container(

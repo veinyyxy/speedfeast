@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../Common/order_item.dart';
+import '../Controller/service_provider.dart';
+import '../RegisterPage/phone_login_page.dart';
 
 // ================= NEW: 定义支付卡片类型和数据模型 =================
 enum CardType { visa, mastercard, unionpay, paypal, googlepay, applepay }
@@ -36,7 +40,10 @@ class MyApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.black),
         ),
       ),*/
-      home: const OrderListPage(),
+      home: ChangeNotifierProvider(
+        create: (_) => ServiceProvider(),
+        child: const OrderListPage(),
+      ),
     );
   }
 }
@@ -51,23 +58,6 @@ class OrderListPage extends StatefulWidget {
 }
 
 class _OrderListPageState extends State<OrderListPage> {
-  final List<OrderItem> _orderItems = [
-    OrderItem(
-      id: '1',
-      name: 'BLT Chicken Cruncher',
-      quantity: 1,
-      price: 11.49,
-      imagePath: 'assets/images/hamberger1.jpg',
-    ),
-    OrderItem(
-      id: '2',
-      name: 'Chubby Chicken® Burger',
-      quantity: 1,
-      price: 8.69,
-      imagePath: 'assets/images/hamberger2.jpg',
-    ),
-  ];
-
   double _tipPercentage = 0;
   double _customTip = 0.0;
   final TextEditingController _customTipController = TextEditingController();
@@ -75,6 +65,7 @@ class _OrderListPageState extends State<OrderListPage> {
   bool _isAddItemButtonPressed = false;
   bool _showCustomTipInput = false;
   DeliveryMode _deliveryMode = DeliveryMode.delivery;
+  bool _isSubmittingOrder = false;
 
   // ================= NEW: 添加支付信息状态变量 =================
   PaymentInfo? _paymentInfo; // null 表示没有支付信息
@@ -114,18 +105,10 @@ class _OrderListPageState extends State<OrderListPage> {
   }
 
   void _updateQuantity(String id, int delta) {
-    setState(() {
-      final index = _orderItems.indexWhere((item) => item.id == id);
-      if (index != -1) {
-        _orderItems[index].quantity += delta;
-        if (_orderItems[index].quantity <= 0) {
-          _orderItems.removeAt(index);
-        }
-      }
-    });
+    context.read<ServiceProvider>().updateQuantity(id, delta);
   }
 
-  double get subtotal => _orderItems.fold(0.0, (sum, item) => sum + (item.quantity * item.price));
+  double get subtotal => context.read<ServiceProvider>().cartSubtotal;
   double get deliveryFee => 4.25;
   double get deliveryServiceFee => 2.02;
   double get taxes => subtotal * 0.13;
@@ -146,10 +129,127 @@ class _OrderListPageState extends State<OrderListPage> {
     return subtotal + taxes + tipAmount;
   }
 
+  String get _fulfillmentTypeForRequest {
+    switch (_deliveryMode) {
+      case DeliveryMode.delivery:
+        return 'delivery';
+      case DeliveryMode.dineIn:
+        return 'dine_in';
+      case DeliveryMode.takeout:
+        return 'takeout';
+    }
+  }
+
+  Map<String, dynamic>? get _shippingAddressForRequest {
+    if (_deliveryMode != DeliveryMode.delivery) return null;
+    return {
+      'receiver_name': 'Ethan Yang',
+      'country': 'CA',
+      'province': 'MB',
+      'city': 'Winnipeg',
+      'street': '630 Guelph Street',
+      'postal_code': 'R3M 3B2',
+    };
+  }
+
+  String? _validateOrderContents(List<OrderItem> orderItems) {
+    if (orderItems.isEmpty) return 'Please add at least one item.';
+    if (_paymentInfo == null) return 'Please add a payment method.';
+    if (_deliveryMode == DeliveryMode.delivery &&
+        _shippingAddressForRequest == null) {
+      return 'Please add a delivery address.';
+    }
+    if (_deliveryMode == DeliveryMode.dineIn) {
+      const tableNumber = '12';
+      if (tableNumber.isEmpty) return 'Please provide a table number.';
+    }
+    return null;
+  }
+
+  bool _isAuthenticationError(String? message) {
+    final normalized = message?.toLowerCase() ?? '';
+    return normalized.contains('token') ||
+        normalized.contains('unauthorized') ||
+        normalized.contains('log in');
+  }
+
+  Future<void> _submitOrder(List<OrderItem> orderItems) async {
+    final errorMessage = _validateOrderContents(orderItems);
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+      return;
+    }
+
+    final serviceProvider = context.read<ServiceProvider>();
+    if (!serviceProvider.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in before making an order.')),
+      );
+      await showLoginDialog(context);
+      return;
+    }
+
+    setState(() => _isSubmittingOrder = true);
+    try {
+      final response = await serviceProvider.createOrder(
+        fulfillmentType: _fulfillmentTypeForRequest,
+        tableNumber: _deliveryMode == DeliveryMode.dineIn ? '12' : null,
+        pickupLocation: _deliveryMode == DeliveryMode.takeout
+            ? '630 Guelph Street, Winnipeg, MB, Canada, R3M 3B2'
+            : null,
+        shippingAddress: _shippingAddressForRequest,
+        tipAmount: tipAmount,
+      );
+
+      if (!mounted) return;
+      if (response != null) {
+        final orderId = response['order']?['order_id']?.toString() ?? '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              orderId.isEmpty
+                  ? 'Order created successfully.'
+                  : 'Order created successfully: $orderId',
+            ),
+          ),
+        );
+      } else {
+        final orderError =
+            serviceProvider.lastOrderError ?? 'Failed to create order.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(orderError),
+          ),
+        );
+
+        if (_isAuthenticationError(orderError)) {
+          final loginResult = await showLoginDialog(context);
+          if (!mounted) return;
+          if (loginResult == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Login successful. Please submit the order again.'),
+              ),
+            );
+          }
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingOrder = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 检查是否有支付信息，用于按钮状态
     final bool isPaymentReady = _paymentInfo != null;
+    final orderItems = context.watch<ServiceProvider>().cartItems;
+    final bool isOrderReady =
+        isPaymentReady && orderItems.isNotEmpty && !_isSubmittingOrder;
 
     return Scaffold(
       appBar: AppBar(
@@ -224,14 +324,16 @@ class _OrderListPageState extends State<OrderListPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               child: Column(
-                children: _orderItems.map((item) => _buildOrderItem(item)).toList(),
+                children: orderItems.isEmpty
+                    ? [_buildEmptyOrder()]
+                    : orderItems.map((item) => _buildOrderItem(item)).toList(),
               ),
             ),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: GestureDetector(
-                onTap: () => print('Add More Items tapped'),
+                onTap: () => Navigator.pop(context),
                 onTapDown: (_) => setState(() => _isAddItemButtonPressed = true),
                 onTapUp: (_) => setState(() => _isAddItemButtonPressed = false),
                 onTapCancel: () => setState(() => _isAddItemButtonPressed = false),
@@ -314,15 +416,15 @@ class _OrderListPageState extends State<OrderListPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 children: [
-                  _buildPriceRow('Subtotal', '\$${subtotal.toStringAsFixed(2)}'),
+                  _buildPriceRow('Subtotal', 'CAD \$${subtotal.toStringAsFixed(2)}'),
                   if (_deliveryMode == DeliveryMode.delivery) ...[
-                    _buildPriceRow('Delivery Fee', '\$${deliveryFee.toStringAsFixed(2)}'),
-                    _buildPriceRow('Delivery Service Fee', '\$${deliveryServiceFee.toStringAsFixed(2)}'),
+                    _buildPriceRow('Delivery Fee', 'CAD \$${deliveryFee.toStringAsFixed(2)}'),
+                    _buildPriceRow('Delivery Service Fee', 'CAD \$${deliveryServiceFee.toStringAsFixed(2)}'),
                   ],
-                  _buildPriceRow('Taxes', '\$${taxes.toStringAsFixed(2)}'),
-                  _buildPriceRow('Tip', '\$${tipAmount.toStringAsFixed(2)}'),
+                  _buildPriceRow('Taxes', 'CAD \$${taxes.toStringAsFixed(2)}'),
+                  _buildPriceRow('Tip', 'CAD \$${tipAmount.toStringAsFixed(2)}'),
                   const Divider(height: 30, thickness: 1, color: Colors.grey),
-                  _buildPriceRow('Total', '\$${total.toStringAsFixed(2)}', isTotal: true),
+                  _buildPriceRow('Total', 'CAD \$${total.toStringAsFixed(2)}', isTotal: true),
                 ],
               ),
             ),
@@ -350,17 +452,22 @@ class _OrderListPageState extends State<OrderListPage> {
         color: Colors.white,
         child: ElevatedButton(
           // ================= MODIFIED: 根据支付状态设置按钮 =================
-          onPressed: isPaymentReady
-              ? () => print('Make My Order - \$${total.toStringAsFixed(2)} tapped')
+          onPressed: isOrderReady
+              ? () => _submitOrder(orderItems)
               : null, // 如果没有支付信息，按钮不可用
           style: ElevatedButton.styleFrom(
-            backgroundColor: isPaymentReady ? Colors.deepOrange : Colors.grey[400], // 可用和不可用时的颜色
+            backgroundColor: isOrderReady ? Colors.deepOrange : Colors.grey[400], // 可用和不可用时的颜色
             disabledBackgroundColor: Colors.grey[300],
             padding: const EdgeInsets.symmetric(vertical: 15.0),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
           ),
           // ===============================================================
-          child: Text('Make My Order • \$${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+          child: Text(
+            _isSubmittingOrder
+                ? 'Creating Order...'
+                : 'Make My Order • CAD \$${total.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );
@@ -691,7 +798,7 @@ class _OrderListPageState extends State<OrderListPage> {
               height: 60,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(image: AssetImage(item.imagePath), fit: BoxFit.cover),
+                image: DecorationImage(image: item.resolveImageProvider(), fit: BoxFit.cover),
               ),
             ),
             const SizedBox(width: 12),
@@ -700,6 +807,29 @@ class _OrderListPageState extends State<OrderListPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('${item.quantity}x ${item.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  if (item.description.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        item.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ),
+                  if (item.selectedOptions.values.any((values) => values.isNotEmpty))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        item.selectedOptions.entries
+                            .where((entry) => entry.value.isNotEmpty)
+                            .map((entry) => '${entry.key}: ${entry.value.join(", ")}')
+                            .join(' · '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                      ),
+                    ),
                   TextButton(
                     onPressed: () => _updateQuantity(item.id, -item.quantity),
                     style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
@@ -708,7 +838,7 @@ class _OrderListPageState extends State<OrderListPage> {
                 ],
               ),
             ),
-            Text('\$${(item.quantity * item.price).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('CAD \$${(item.quantity * item.price).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(width: 12),
             Row(
               children: [
@@ -722,6 +852,34 @@ class _OrderListPageState extends State<OrderListPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyOrder() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.shopping_bag_outlined, size: 44, color: Colors.grey[500]),
+          const SizedBox(height: 10),
+          const Text(
+            'Your order is empty',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Add items from the menu to start your order.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
       ),
     );
   }
@@ -766,7 +924,7 @@ class _OrderListPageState extends State<OrderListPage> {
           child: Column(
             children: [
               Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.deepOrange : Colors.black)),
-              Text('\$${amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 12, color: isSelected ? Colors.deepOrange : Colors.grey[700])),
+              Text('CAD \$${amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 12, color: isSelected ? Colors.deepOrange : Colors.grey[700])),
             ],
           ),
         ),
@@ -807,17 +965,17 @@ class _OrderListPageState extends State<OrderListPage> {
                   autofocus: true,
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
-                    hintText: '\$0.00',
+                    hintText: 'CAD \$0.00',
                     isDense: true,
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
-                    hintStyle: TextStyle(fontSize: 12, color: isSelected ? Colors.deepOrange.withOpacity(0.7) : Colors.grey[400]),
+                    hintStyle: TextStyle(fontSize: 12, color: isSelected ? Colors.deepOrange.withValues(alpha:0.7) : Colors.grey[400]),
                   ),
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.deepOrange : Colors.grey[700]),
                 ),
               )
                   : Text(
-                _customTip > 0 ? '\$${_customTip.toStringAsFixed(2)}' : ' ',
+                _customTip > 0 ? 'CAD \$${_customTip.toStringAsFixed(2)}' : ' ',
                 style: TextStyle(fontSize: 12, color: isSelected ? Colors.deepOrange : Colors.grey[700]),
               ),
             ],
@@ -839,20 +997,4 @@ class _OrderListPageState extends State<OrderListPage> {
       ),
     );
   }
-}
-
-class OrderItem {
-  final String id;
-  final String name;
-  int quantity;
-  final double price;
-  final String imagePath;
-
-  OrderItem({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.price,
-    required this.imagePath,
-  });
 }

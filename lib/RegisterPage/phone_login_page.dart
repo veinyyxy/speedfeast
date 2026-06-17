@@ -10,8 +10,8 @@ enum LoginMode {
 }
 
 // Function to display the login dialog
-void showLoginDialog(BuildContext context) {
-  showDialog(
+Future<bool?> showLoginDialog(BuildContext context) {
+  return showDialog<bool>(
     context: context,
     builder: (BuildContext context) {
       return const AlertDialog(

@@ -38,28 +38,28 @@ Future<Map<String, String>> collectFeatures() async {
     if (Platform.isAndroid) {
       final info = await deviceInfo.androidInfo;
       platform = 'Android';
-      model = info.model ?? '';
-      osVersion = info.version.release ?? '';
+      model = info.model;
+      osVersion = info.version.release;
     } else if (Platform.isIOS) {
       final info = await deviceInfo.iosInfo;
       platform = 'iOS';
-      model = info.utsname.machine ?? '';
-      osVersion = info.systemVersion ?? '';
+      model = info.utsname.machine;
+      osVersion = info.systemVersion;
     } else if (Platform.isWindows) {
       final info = await deviceInfo.windowsInfo;
       platform = 'Windows';
-      model = info.computerName ?? '';
+      model = info.computerName;
       osVersion = '${info.productName} ${info.buildNumber}';
     } else if (Platform.isLinux) {
       final info = await deviceInfo.linuxInfo;
       platform = 'Linux';
-      model = info.prettyName ?? '';
+      model = info.prettyName;
       osVersion = info.version ?? '';
     } else if (Platform.isMacOS) {
       final info = await deviceInfo.macOsInfo;
       platform = 'macOS';
-      model = info.model ?? '';
-      osVersion = info.osRelease ?? '';
+      model = info.model;
+      osVersion = info.osRelease;
     } else {
       // 兜底情况
       platform = 'Unknown Native';

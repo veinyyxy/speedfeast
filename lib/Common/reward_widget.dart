@@ -22,63 +22,70 @@ class _RewardWidgetState extends State<RewardWidget> {
   Widget build(BuildContext context) {
     // 修改开始: 将原来的 Column 替换为一个统一的 Padding -> Card 结构
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Card(
         color: Colors.orange[50],
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // --- 这是上半部分的内容 (保持不变) ---
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: CircularProgressIndicator(
-                                value: 1000 / 3000, // Current points / target points
-                                strokeWidth: 10,
-                                backgroundColor: Colors.grey[300],
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                    Colors.deepOrange),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              '3000',
-                              style: TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text('pts',
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold)),
-                          ],
+                        SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(
+                            value: 1000 / 3000, // Current points / target points
+                            strokeWidth: 7,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.deepOrange),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '3000',
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.bold,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'pts',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   Image.asset(
                     'assets/images/long.jpeg',
-                    height: 60,
-                    width: 100,
+                    height: 46,
+                    width: 78,
+                    fit: BoxFit.contain,
                   ),
                 ],
               ),
-              const Text('Unlock more items at 300'),
-              const SizedBox(height: 10),
+              const SizedBox(height: 4),
+              Text(
+                'Unlock more items at 300',
+                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+              ),
+              const SizedBox(height: 8),
 
               // --- 根据 _isExpanded 状态显示按钮或奖励详情 ---
               if (!_isExpanded)
@@ -94,16 +101,18 @@ class _RewardWidgetState extends State<RewardWidget> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 30, vertical: 12),
+                        horizontal: 22, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
                       Text('Explore Rewards',
                           style: TextStyle(color: Colors.white)),
-                      SizedBox(width: 5),
+                      SizedBox(width: 4),
                       Icon(Icons.keyboard_arrow_down,
-                          color: Colors.white),
+                          color: Colors.white, size: 20),
                     ],
                   ),
                 ),
@@ -179,13 +188,13 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 添加一个分隔线，实现 "上面部分一个边框" 的视觉效果
-        const SizedBox(height: 10),
-        const Divider(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 6),
+        const Divider(height: 12),
+        const SizedBox(height: 8),
 
         // --- 以下是 _RewardsSection 的原始内部 UI (保持不变) ---
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: _pointOptions.map((points) {
             return _buildPointButton(
               context,
@@ -199,10 +208,11 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
             );
           }).toList(),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10),
         HorizontalScrollSection(
           title: '$_selectedPoints Reward Items',
           items: currentRewards,
+          compact: true,
           onViewMore: () {
             if (kDebugMode) {
               print('View more $_selectedPoints items tapped!');
@@ -210,7 +220,7 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
             // Handle "See All Rewards" logic for this specific point category
           },
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10),
         Center(
           child: ElevatedButton(
             onPressed: () {
@@ -222,23 +232,30 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
                 borderRadius: BorderRadius.circular(20),
               ),
               padding: const EdgeInsets.symmetric(
-                  horizontal: 40, vertical: 12),
+                  horizontal: 28, vertical: 8),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: const Text('See All Rewards',
                 style: TextStyle(color: Colors.white)),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Center(
           child: TextButton(
             onPressed: () {
               // Handle About A&W Rewards
             },
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: const Text('About Rewards',
                 style: TextStyle(color: Colors.deepOrange)),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Center(
           child: ElevatedButton(
             onPressed: widget.onHide,
@@ -249,15 +266,18 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
                 side: const BorderSide(color: Colors.grey),
               ),
               padding: const EdgeInsets.symmetric(
-                  horizontal: 40, vertical: 12),
+                  horizontal: 28, vertical: 8),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
                 Text('Hide',
                     style: TextStyle(color: Colors.deepOrange)),
-                SizedBox(width: 5),
-                Icon(Icons.keyboard_arrow_up, color: Colors.deepOrange),
+                SizedBox(width: 4),
+                Icon(Icons.keyboard_arrow_up,
+                    color: Colors.deepOrange, size: 20),
               ],
             ),
           ),
@@ -276,16 +296,17 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? Colors.deepOrange : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
               color: isSelected ? Colors.transparent : Colors.grey[300]!),
         ),
         child: Text(
           points,
           style: TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.bold,
             color: isSelected ? Colors.white : Colors.black,
           ),
