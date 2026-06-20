@@ -20,15 +20,15 @@ class _RewardWidgetState extends State<RewardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     // 修改开始: 将原来的 Column 替换为一个统一的 Padding -> Card 结构
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Card(
-        color: Colors.orange[50],
+        color: primaryColor.withAlpha(18),
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(
@@ -45,11 +45,13 @@ class _RewardWidgetState extends State<RewardWidget> {
                           width: 32,
                           height: 32,
                           child: CircularProgressIndicator(
-                            value: 1000 / 3000, // Current points / target points
+                            value:
+                                1000 / 3000, // Current points / target points
                             strokeWidth: 7,
                             backgroundColor: Colors.grey[300],
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.deepOrange),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              primaryColor,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -96,29 +98,36 @@ class _RewardWidgetState extends State<RewardWidget> {
                     });
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepOrange,
+                    backgroundColor: primaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 22, vertical: 8),
+                      horizontal: 22,
+                      vertical: 8,
+                    ),
                     minimumSize: const Size(0, 36),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
-                      Text('Explore Rewards',
-                          style: TextStyle(color: Colors.white)),
+                      Text(
+                        'Explore Rewards',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down,
-                          color: Colors.white, size: 20),
+                      Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ],
                   ),
                 ),
 
               if (_isExpanded)
-              // 现在 _RewardsSection 的内容会直接渲染在这个 Card 内部
+                // 现在 _RewardsSection 的内容会直接渲染在这个 Card 内部
                 _RewardsSection(
                   onHide: () {
                     setState(() {
@@ -140,7 +149,8 @@ class _RewardWidgetState extends State<RewardWidget> {
 // -----------------------------------------------------------------------------
 // 它被标记为私有 (_RewardsSection)，因为它主要用于 RewardWidget 内部。
 
-class _RewardsSection extends StatefulWidget { // 重命名为 _RewardsSection
+class _RewardsSection extends StatefulWidget {
+  // 重命名为 _RewardsSection
   final VoidCallback onHide; // 回调函数，用于通知父组件隐藏此部分
 
   const _RewardsSection({required this.onHide});
@@ -149,38 +159,106 @@ class _RewardsSection extends StatefulWidget { // 重命名为 _RewardsSection
   State<_RewardsSection> createState() => _RewardsSectionState(); // State class 也重命名
 }
 
-class _RewardsSectionState extends State<_RewardsSection> { // State class 也重命名
+class _RewardsSectionState extends State<_RewardsSection> {
+  // State class 也重命名
   String _selectedPoints = '300'; // 默认选中 300 点
   final List<String> _pointOptions = ['300', '600', '900', '1500']; // 可选的点数分类
 
   // 为每个点数类别准备一些示例奖励数据
   final Map<String, List<ProductItemData>> _rewardsData = {
     '300': [
-      ProductItemData(imagePath: 'assets/images/pears.jpg', brandName: 'Fresh Farms', productName: 'Juicy Pears', price: '300 pts'),
-      ProductItemData(imagePath: 'assets/images/watermelon.jpg', brandName: 'Green Valley', productName: 'Sweet Watermelon', price: '300 pts'),
-      ProductItemData(imagePath: 'assets/images/carrots.jpg', brandName: 'Organic+', productName: 'Crisp Carrots', price: '300 pts'),
+      ProductItemData(
+        imagePath: 'assets/images/pears.jpg',
+        brandName: 'Fresh Farms',
+        productName: 'Juicy Pears',
+        price: '300 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/watermelon.jpg',
+        brandName: 'Green Valley',
+        productName: 'Sweet Watermelon',
+        price: '300 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/carrots.jpg',
+        brandName: 'Organic+',
+        productName: 'Crisp Carrots',
+        price: '300 pts',
+      ),
     ],
     '600': [
-      ProductItemData(imagePath: 'assets/images/cat.jpg', brandName: 'Pet Food Co.', productName: 'Happy Cat Kibble', price: '600 pts'),
-      ProductItemData(imagePath: 'assets/images/radish.jpg', brandName: 'Farm Fresh', productName: 'Spicy Radish', price: '600 pts'),
-      ProductItemData(imagePath: 'assets/images/pears.jpg', brandName: 'Fresh Farms', productName: 'Juicy Pears', price: '600 pts'),
+      ProductItemData(
+        imagePath: 'assets/images/cat.jpg',
+        brandName: 'Pet Food Co.',
+        productName: 'Happy Cat Kibble',
+        price: '600 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/radish.jpg',
+        brandName: 'Farm Fresh',
+        productName: 'Spicy Radish',
+        price: '600 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/pears.jpg',
+        brandName: 'Fresh Farms',
+        productName: 'Juicy Pears',
+        price: '600 pts',
+      ),
     ],
     '900': [
-      ProductItemData(imagePath: 'assets/images/mushrooms.jpg', brandName: 'Gourmet', productName: 'Fresh Mushrooms', price: '900 pts'),
-      ProductItemData(imagePath: 'assets/images/cherries.jpg', brandName: 'Sweet Treats', productName: 'Ripe Cherries', price: '900 pts'),
-      ProductItemData(imagePath: 'assets/images/watermelon.jpg', brandName: 'Green Valley', productName: 'Sweet Watermelon', price: '900 pts'),
+      ProductItemData(
+        imagePath: 'assets/images/mushrooms.jpg',
+        brandName: 'Gourmet',
+        productName: 'Fresh Mushrooms',
+        price: '900 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/cherries.jpg',
+        brandName: 'Sweet Treats',
+        productName: 'Ripe Cherries',
+        price: '900 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/watermelon.jpg',
+        brandName: 'Green Valley',
+        productName: 'Sweet Watermelon',
+        price: '900 pts',
+      ),
     ],
     '1500': [
-      ProductItemData(imagePath: 'assets/images/carrots.jpg', brandName: 'Organic+', productName: 'Crisp Carrots', price: '1500 pts'),
-      ProductItemData(imagePath: 'assets/images/cat.jpg', brandName: 'Pet Food Co.', productName: 'Happy Cat Kibble', price: '1500 pts'),
-      ProductItemData(imagePath: 'assets/images/radish.jpg', brandName: 'Farm Fresh', productName: 'Spicy Radish', price: '1500 pts'),
-      ProductItemData(imagePath: 'assets/images/cherries.jpg', brandName: 'Sweet Treats', productName: 'Ripe Cherries', price: '1500 pts'),
+      ProductItemData(
+        imagePath: 'assets/images/carrots.jpg',
+        brandName: 'Organic+',
+        productName: 'Crisp Carrots',
+        price: '1500 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/cat.jpg',
+        brandName: 'Pet Food Co.',
+        productName: 'Happy Cat Kibble',
+        price: '1500 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/radish.jpg',
+        brandName: 'Farm Fresh',
+        productName: 'Spicy Radish',
+        price: '1500 pts',
+      ),
+      ProductItemData(
+        imagePath: 'assets/images/cherries.jpg',
+        brandName: 'Sweet Treats',
+        productName: 'Ripe Cherries',
+        price: '1500 pts',
+      ),
     ],
   };
 
   @override
   Widget build(BuildContext context) {
-    final List<ProductItemData> currentRewards = _rewardsData[_selectedPoints] ?? [];
+    final List<ProductItemData> currentRewards =
+        _rewardsData[_selectedPoints] ?? [];
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     // 修改开始: 移除外层的 Padding 和 Card，直接返回包含内容的 Column
     // 这样它就可以被无缝地嵌入到父组件的 Card 中
@@ -227,17 +305,18 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
               // Handle See All Rewards
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepOrange,
+              backgroundColor: primaryColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 28, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
               minimumSize: const Size(0, 36),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('See All Rewards',
-                style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'See All Rewards',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ),
         const SizedBox(height: 4),
@@ -251,8 +330,7 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('About Rewards',
-                style: TextStyle(color: Colors.deepOrange)),
+            child: Text('About Rewards', style: TextStyle(color: primaryColor)),
           ),
         ),
         const SizedBox(height: 4),
@@ -265,19 +343,16 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
                 borderRadius: BorderRadius.circular(20),
                 side: const BorderSide(color: Colors.grey),
               ),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 28, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
               minimumSize: const Size(0, 36),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                Text('Hide',
-                    style: TextStyle(color: Colors.deepOrange)),
-                SizedBox(width: 4),
-                Icon(Icons.keyboard_arrow_up,
-                    color: Colors.deepOrange, size: 20),
+              children: [
+                Text('Hide', style: TextStyle(color: primaryColor)),
+                const SizedBox(width: 4),
+                Icon(Icons.keyboard_arrow_up, color: primaryColor, size: 20),
               ],
             ),
           ),
@@ -288,20 +363,23 @@ class _RewardsSectionState extends State<_RewardsSection> { // State class 也�
   }
 
   Widget _buildPointButton(
-      BuildContext context,
-      String points, {
-        required bool isSelected,
-        required VoidCallback onTap,
-      }) {
+    BuildContext context,
+    String points, {
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.deepOrange : Colors.white,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: isSelected ? Colors.transparent : Colors.grey[300]!),
+            color: isSelected ? Colors.transparent : Colors.grey[300]!,
+          ),
         ),
         child: Text(
           points,

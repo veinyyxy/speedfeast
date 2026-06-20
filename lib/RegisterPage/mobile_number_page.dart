@@ -39,14 +39,14 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'APP Name', // 您可以根据需要更改此处的应用名称
           style: TextStyle(
-            color: Colors.black,
+            color: Theme.of(context).appBarTheme.titleTextStyle?.color,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
       body: Padding(
@@ -66,19 +66,13 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
             const SizedBox(height: 8),
             Text(
               'Add your mobile to aid in account recovery',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 40),
 
             Text(
               'Mobile',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[800],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[800]),
             ),
             const SizedBox(height: 8),
 
@@ -101,7 +95,10 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 16,
+                ),
               ),
               initialCountryCode: 'CA', // 初始国家代码设置为加拿大 (CA)
               onChanged: (phone) {
@@ -113,9 +110,15 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                 }
               },
               // 样式定制以匹配图片
-              dropdownIcon: const Icon(Icons.arrow_drop_down, color: Colors.black),
+              dropdownIcon: const Icon(
+                Icons.arrow_drop_down,
+                color: Colors.black,
+              ),
               dropdownIconPosition: IconPosition.trailing, // 下拉图标放在右侧
-              dropdownTextStyle: const TextStyle(fontSize: 16, color: Colors.black),
+              dropdownTextStyle: const TextStyle(
+                fontSize: 16,
+                color: Colors.black,
+              ),
               showDropdownIcon: true,
               disableLengthCheck: true, // 允许自由输入长度，根据实际需求调整
               // 国家选择器框的样式
@@ -127,7 +130,8 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
 
             // <<< 这里：恢复 Skip 按钮的条件显示逻辑
             if (_isSkipButtonVisible) // 如果 _isSkipButtonVisible 为 true，则显示此按钮
-              Column( // 使用 Column 包裹，以正确添加 SizedBox
+              Column(
+                // 使用 Column 包裹，以正确添加 SizedBox
                 children: [
                   const SizedBox(height: 24),
                   // Skip 按钮
@@ -142,22 +146,21 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.black,
                       backgroundColor: Colors.grey[200], // 文本颜色为黑色，背景颜色为浅灰色
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                       elevation: 0, // 移除阴影
                     ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontSize: 16),
-                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 16)),
                   ),
                 ],
               ),
 
             const Spacer(), // 将底部导航按钮推到底部
-
             // 底部导航按钮
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -177,20 +180,17 @@ class _MobileNumberPageState extends State<MobileNumberPage> {
                   heroTag: "nextBtn", // 避免多个 FloatingActionButton 的 heroTag 冲突
                   onPressed: _isNextButtonEnabled
                       ? () {
-                    Navigator.of(context).pushNamed(
-                      '/register/VerificationPage',
-                      arguments: {
-                        'phone': _phoneNumber
-                      },
-                    );
-                  }
+                          Navigator.of(context).pushNamed(
+                            '/register/VerificationPage',
+                            arguments: {'phone': _phoneNumber},
+                          );
+                        }
                       : null, // 根据 _isNextButtonEnabled 决定是否禁用
-                  label: const Text(
-                    'Next',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  label: const Text('Next', style: TextStyle(fontSize: 18)),
                   icon: const Icon(Icons.arrow_forward),
-                  backgroundColor: _isNextButtonEnabled ? Colors.black : Colors.grey[300], // 启用或禁用时的背景色
+                  backgroundColor: _isNextButtonEnabled
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey[300], // 启用或禁用时的背景色
                   foregroundColor: Colors.white,
                   elevation: 0,
                 ),

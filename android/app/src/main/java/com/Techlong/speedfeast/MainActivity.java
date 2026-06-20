@@ -1,4 +1,4 @@
-package Techlong.com.speedfeast;
+package com.techlong.speedfeast;
 
 import io.flutter.embedding.android.FlutterActivity;
 

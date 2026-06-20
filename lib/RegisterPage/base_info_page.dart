@@ -23,7 +23,9 @@ class MyApp extends StatelessWidget {
 
 class BaseInfoPage extends StatefulWidget {
   // 重命名为 RegistrationPage
-  const BaseInfoPage(String? phone, String? email, {super.key}) : _phone = phone, _email = email;
+  const BaseInfoPage(String? phone, String? email, {super.key})
+    : _phone = phone,
+      _email = email;
   final String? _phone;
   final String? _email;
 
@@ -44,8 +46,10 @@ class BaseInfoPageState extends State<BaseInfoPage> {
 
   // Controllers for password fields
   // 注册时不需要原始密码，所以 _originalPasswordController 移除
-  final TextEditingController _passwordController = TextEditingController(); // 原来的 _newPasswordController
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _passwordController =
+      TextEditingController(); // 原来的 _newPasswordController
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   // State variable to hold the current email address, which can be modified
   late String? _currentEmail;
@@ -70,7 +74,9 @@ class BaseInfoPageState extends State<BaseInfoPage> {
   // Function to show the email edit dialog
   void _showEditEmailDialog(BuildContext context) {
     // 使用局部控制器，确保每次弹窗都有独立的控制器，并在弹窗关闭后正确释放
-    final TextEditingController dialogEmailController = TextEditingController(text: _currentEmail);
+    final TextEditingController dialogEmailController = TextEditingController(
+      text: _currentEmail,
+    );
 
     showDialog(
       context: context,
@@ -96,7 +102,8 @@ class BaseInfoPageState extends State<BaseInfoPage> {
               child: const Text('Ok'),
               onPressed: () {
                 setState(() {
-                  _currentEmail = dialogEmailController.text; // Update the email state
+                  _currentEmail =
+                      dialogEmailController.text; // Update the email state
                 });
                 Navigator.pop(dialogContext); // Close the dialog
               },
@@ -114,11 +121,13 @@ class BaseInfoPageState extends State<BaseInfoPage> {
   @override
   Widget build(BuildContext context) {
     final serviceProvider = context.read<ServiceProvider>();
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
-          color: Colors.deepOrange,
+          color: primaryColor,
           onPressed: () {
             Navigator.pop(context);
           },
@@ -128,10 +137,10 @@ class BaseInfoPageState extends State<BaseInfoPage> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.deepOrange,
+            color: primaryColor,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
       body: Padding(
@@ -215,13 +224,15 @@ class BaseInfoPageState extends State<BaseInfoPage> {
                   debugPrint('First Name: ${_firstNameController.text}');
                   debugPrint('Last Name: ${_lastNameController.text}');
                   debugPrint('Password: ${_passwordController.text}'); // 获取密码
-                  debugPrint('Confirm Password: ${_confirmPasswordController
-                      .text}'); // 获取确认密码
+                  debugPrint(
+                    'Confirm Password: ${_confirmPasswordController.text}',
+                  ); // 获取确认密码
                   bool isRegisterSuccess = await serviceProvider.registerUser(
                     '${_firstNameController.text} ${_lastNameController.text}',
                     _currentPhone ?? '',
                     _currentEmail ?? '',
-                    _passwordController.text);
+                    _passwordController.text,
+                  );
                   // !!! 在这里添加 mounted 检查 !!!
                   if (!mounted) return; // 如果 Widget 已经被卸载，则不执行后续操作
 
@@ -229,25 +240,31 @@ class BaseInfoPageState extends State<BaseInfoPage> {
                     // 注册成功，跳转到主页或登录页
                     debugPrint('Registration successful!');
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Registration successful! Please log in.')),
+                      SnackBar(
+                        content: Text(
+                          'Registration successful! Please log in.',
+                        ),
+                      ),
                     );
                     // 假设你的登录页是 LoginPage，或者直接跳转到 HomePage
                     // 你需要替换为你实际的目标路由
                     Navigator.of(context).pushNamedAndRemoveUntil(
                       '/', // 替换为你的主页或登录页
-                          (Route<dynamic> route) => false, // 移除所有之前的路由
+                      (Route<dynamic> route) => false, // 移除所有之前的路由
                     );
                   } else {
                     // 注册失败
                     debugPrint('Registration failed.');
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Registration failed. Please try again.')),
+                      SnackBar(
+                        content: Text('Registration failed. Please try again.'),
+                      ),
                     );
                     // 可以在这里显示一个错误消息
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepOrange,
+                  backgroundColor: primaryColor,
                   minimumSize: Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -265,5 +282,5 @@ class BaseInfoPageState extends State<BaseInfoPage> {
     );
   }
 
-// _buildAddAddressButton 函数已移除
+  // _buildAddAddressButton 函数已移除
 }

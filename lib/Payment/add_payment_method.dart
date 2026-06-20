@@ -48,6 +48,8 @@ class AddPaymentMethodPage extends StatelessWidget {
     required String title,
     required VoidCallback onTap,
   }) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -56,7 +58,7 @@ class AddPaymentMethodPage extends StatelessWidget {
           children: [
             SizedBox(
               width: 28,
-              child: Icon(icon, size: 24, color: Colors.deepOrange),
+              child: Icon(icon, size: 24, color: primaryColor),
             ),
             const SizedBox(width: 16),
             Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),

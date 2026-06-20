@@ -17,6 +17,27 @@ class ProductDetailOption {
     this.childGroups = const [],
   });
 
+  factory ProductDetailOption.fromJson(Map<String, dynamic> json) {
+    return ProductDetailOption(
+      id: _readText(json, const ['id', 'option_product_id', 'product_id']),
+      title: _readText(json, const ['title', 'name', 'option_name']),
+      subtitle: _readNullableText(json, const [
+        'subtitle',
+        'description',
+        'option_description',
+      ]),
+      extraPrice: _readDouble(json, const [
+        'extra_price',
+        'extraPrice',
+        'price',
+        'base_price',
+      ]),
+      childGroups: ProductDetailOptionGroup.listFromJson(
+        json['child_groups'] ?? json['childGroups'],
+      ),
+    );
+  }
+
   bool get hasChildren => childGroups.isNotEmpty;
 }
 
@@ -39,12 +60,111 @@ class ProductDetailOptionGroup {
     this.selectionType = ProductOptionSelectionType.single,
   });
 
+  factory ProductDetailOptionGroup.fromJson(Map<String, dynamic> json) {
+    final selectionTypeText = _readText(json, const [
+      'selection_type',
+      'selectionType',
+    ]).toLowerCase();
+    final maxSelect = _readInt(json, const ['max_select', 'maxSelect'], 1);
+    final minSelect = _readInt(json, const ['min_select', 'minSelect'], 0);
+    final isMultiple = selectionTypeText == 'multiple' || maxSelect > 1;
+
+    return ProductDetailOptionGroup(
+      id: _readText(json, const ['id', 'option_group_id', 'group_id']),
+      title: _readText(json, const ['title', 'group_name', 'name']),
+      isRequired:
+          _readBool(json, const ['is_required', 'isRequired']) || minSelect > 0,
+      minSelect: minSelect,
+      maxSelect: maxSelect < 1 ? 1 : maxSelect,
+      selectionType: isMultiple
+          ? ProductOptionSelectionType.multiple
+          : ProductOptionSelectionType.single,
+      options: _optionListFromJson(json['options']),
+    );
+  }
+
+  static List<ProductDetailOptionGroup> listFromJson(dynamic value) {
+    if (value is! List) return const [];
+
+    return value
+        .whereType<Map>()
+        .map(
+          (item) => ProductDetailOptionGroup.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .where((group) => group.id.isNotEmpty && group.title.isNotEmpty)
+        .toList(growable: false);
+  }
+
   String get ruleText {
     if (isRequired) {
       return maxSelect == 1 ? 'Select 1' : 'Select $minSelect to $maxSelect';
     }
     return maxSelect == 1 ? 'Choose 1' : 'Select up to $maxSelect';
   }
+}
+
+List<ProductDetailOption> _optionListFromJson(dynamic value) {
+  if (value is! List) return const [];
+
+  return value
+      .whereType<Map>()
+      .map(
+        (item) => ProductDetailOption.fromJson(Map<String, dynamic>.from(item)),
+      )
+      .where((option) => option.id.isNotEmpty && option.title.isNotEmpty)
+      .toList(growable: false);
+}
+
+String _readText(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isNotEmpty) return text;
+  }
+  return '';
+}
+
+String? _readNullableText(Map<String, dynamic> json, List<String> keys) {
+  final text = _readText(json, keys);
+  return text.isEmpty ? null : text;
+}
+
+int _readInt(Map<String, dynamic> json, List<String> keys, int fallback) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value == null) continue;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    final parsed = int.tryParse(value.toString());
+    if (parsed != null) return parsed;
+  }
+  return fallback;
+}
+
+double _readDouble(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value == null) continue;
+    if (value is num) return value.toDouble();
+    final parsed = double.tryParse(value.toString());
+    if (parsed != null) return parsed;
+  }
+  return 0;
+}
+
+bool _readBool(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value == null) continue;
+    if (value is bool) return value;
+    final text = value.toString().trim().toLowerCase();
+    if (text == 'true' || text == '1' || text == 'yes') return true;
+    if (text == 'false' || text == '0' || text == 'no') return false;
+  }
+  return false;
 }
 
 class ProductRecommendation {
@@ -68,12 +188,14 @@ class ProductDetailOrderData {
   final double unitPrice;
   final double totalPrice;
   final Map<String, List<String>> selections;
+  final String specialInstructions;
 
   const ProductDetailOrderData({
     required this.quantity,
     required this.unitPrice,
     required this.totalPrice,
     required this.selections,
+    this.specialInstructions = '',
   });
 }
 
@@ -116,9 +238,12 @@ class ProductDetail extends StatefulWidget {
 class _ProductDetailState extends State<ProductDetail> {
   final Map<String, Set<String>> _selectedByGroup = {};
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _specialInstructionsController =
+      TextEditingController();
   int _quantity = 1;
   bool _showCompactHeader = false;
   String? _selectedRecommendationId;
+  String _specialInstructions = '';
 
   @override
   void initState() {
@@ -141,6 +266,7 @@ class _ProductDetailState extends State<ProductDetail> {
 
   @override
   void dispose() {
+    _specialInstructionsController.dispose();
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
@@ -162,12 +288,32 @@ class _ProductDetailState extends State<ProductDetail> {
 
     setState(() {
       if (group.selectionType == ProductOptionSelectionType.single) {
+        if (!group.isRequired && selected.contains(option.id)) {
+          selected.clear();
+          for (final childGroup in option.childGroups) {
+            _clearGroupSelections(childGroup);
+          }
+          _syncRecommendationHighlight();
+          return;
+        }
+
+        for (final groupOption in group.options) {
+          if (groupOption.id != option.id &&
+              selected.contains(groupOption.id)) {
+            for (final childGroup in groupOption.childGroups) {
+              _clearGroupSelections(childGroup);
+            }
+          }
+        }
         selected
           ..clear()
           ..add(option.id);
       } else {
         if (selected.contains(option.id)) {
           selected.remove(option.id);
+          for (final childGroup in option.childGroups) {
+            _clearGroupSelections(childGroup);
+          }
         } else if (selected.length < group.maxSelect) {
           selected.add(option.id);
         }
@@ -332,7 +478,9 @@ class _ProductDetailState extends State<ProductDetail> {
                                 ? () => Navigator.pop(context)
                                 : null,
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.black,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               foregroundColor: Colors.white,
                               disabledBackgroundColor: Colors.grey.shade300,
                               disabledForegroundColor: Colors.grey.shade500,
@@ -819,32 +967,151 @@ class _ProductDetailState extends State<ProductDetail> {
     );
   }
 
-  Widget _buildSpecialInstructions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 22),
-      child: Center(
-        child: Material(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(24),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () {},
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+  Future<void> _showSpecialInstructionsEditor() async {
+    _specialInstructionsController.text = _specialInstructions;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            18,
+            20,
+            18 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Icon(Icons.chat_bubble_outline, size: 18),
-                  SizedBox(width: 7),
-                  Text(
-                    'Special instructions',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  const Expanded(
+                    child: Text(
+                      'Special instructions',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close',
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _specialInstructionsController,
+                autofocus: true,
+                maxLines: 5,
+                maxLength: 240,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: 'No onions, sauce on the side...',
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(''),
+                    child: const Text('Clear'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_specialInstructionsController.text.trim()),
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null || !mounted) return;
+    setState(() => _specialInstructions = result);
+  }
+
+  Widget _buildSpecialInstructions() {
+    final hasInstructions = _specialInstructions.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      child: Column(
+        children: [
+          Center(
+            child: Material(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(24),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: _showSpecialInstructionsEditor,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline, size: 18),
+                      const SizedBox(width: 7),
+                      Text(
+                        hasInstructions
+                            ? 'Edit special instructions'
+                            : 'Special instructions',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          if (hasInstructions) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Text(
+                _specialInstructions,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -865,7 +1132,7 @@ class _ProductDetailState extends State<ProductDetail> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, -3),
             ),
@@ -908,10 +1175,11 @@ class _ProductDetailState extends State<ProductDetail> {
                   unitPrice: _unitPrice,
                   totalPrice: _finalPrice,
                   selections: _selectedOptions,
+                  specialInstructions: _specialInstructions.trim(),
                 ),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,

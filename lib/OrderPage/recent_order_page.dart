@@ -14,6 +14,7 @@ class RecentOrdersPage extends StatefulWidget {
 class _RecentOrdersPageState extends State<RecentOrdersPage> {
   Future<List<RecentOrder>>? _ordersFuture;
   bool? _lastLoginState;
+  String? _cancellingOrderId;
 
   @override
   void didChangeDependencies() {
@@ -43,6 +44,62 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
     if (!mounted) return;
     if (result == true) {
       await _reloadOrders();
+    }
+  }
+
+  Future<void> _confirmCancelOrder(RecentOrder order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel order?'),
+        content: Text('This will mark ${order.displayId} as cancelled.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Order'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Cancel Order'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _cancellingOrderId = order.id);
+    final serviceProvider = context.read<ServiceProvider>();
+    final cancelled = await serviceProvider.cancelOrder(order.id);
+    if (!mounted) return;
+
+    if (cancelled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order cancelled.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _reloadOrders();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            serviceProvider.lastRecentOrdersError ??
+                'Order could not be cancelled.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() => _cancellingOrderId = null);
     }
   }
 
@@ -93,8 +150,9 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
         }
 
         final orders = snapshot.data ?? [];
-        final providerError =
-            context.read<ServiceProvider>().lastRecentOrdersError;
+        final providerError = context
+            .read<ServiceProvider>()
+            .lastRecentOrdersError;
         if (orders.isEmpty && providerError != null) {
           return _ScrollableStateMessage(
             icon: Icons.wifi_off_outlined,
@@ -122,7 +180,14 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             itemCount: orders.length,
             itemBuilder: (context, index) {
-              return _OrderCard(order: orders[index]);
+              final order = orders[index];
+              return _OrderCard(
+                order: order,
+                isCancelling: _cancellingOrderId == order.id,
+                onCancel: order.canCancel
+                    ? () => _confirmCancelOrder(order)
+                    : null,
+              );
             },
           ),
         );
@@ -143,13 +208,19 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
 }
 
 class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order});
+  const _OrderCard({
+    required this.order,
+    this.onCancel,
+    this.isCancelling = false,
+  });
 
   final RecentOrder order;
+  final VoidCallback? onCancel;
+  final bool isCancelling;
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColor(order.status);
+    final color = _statusColor(context, order.status);
 
     return Card(
       elevation: 0,
@@ -174,9 +245,8 @@ class _OrderCard extends StatelessWidget {
                         order.displayId,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -197,13 +267,21 @@ class _OrderCard extends StatelessWidget {
             const SizedBox(height: 12),
             _InfoLine(
               icon: Icons.shopping_bag_outlined,
-              label: '${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
+              label:
+                  '${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
             ),
             const SizedBox(height: 8),
             _InfoLine(
               icon: Icons.payments_outlined,
               label: 'CAD \$${order.totalAmount.toStringAsFixed(2)}',
             ),
+            if (order.paymentStatusLabel.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _InfoLine(
+                icon: Icons.credit_card_outlined,
+                label: 'Payment: ${order.paymentStatusLabel}',
+              ),
+            ],
             if (order.fulfillmentLabel.isNotEmpty) ...[
               const SizedBox(height: 8),
               _InfoLine(
@@ -212,13 +290,35 @@ class _OrderCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _showOrderDetails(context, order),
-                icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                label: const Text('View Details'),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (onCancel != null) ...[
+                  TextButton.icon(
+                    onPressed: isCancelling ? null : onCancel,
+                    icon: isCancelling
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.red.shade700,
+                            ),
+                          )
+                        : const Icon(Icons.cancel_outlined, size: 18),
+                    label: Text(isCancelling ? 'Cancelling...' : 'Cancel'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                TextButton.icon(
+                  onPressed: () => _showOrderDetails(context, order),
+                  icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                  label: const Text('View Details'),
+                ),
+              ],
             ),
           ],
         ),
@@ -272,22 +372,23 @@ class _OrderDetailsSheet extends StatelessWidget {
                   child: Text(
                     order.displayId,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 _StatusChip(
                   label: order.status,
-                  color: _statusColor(order.status),
+                  color: _statusColor(context, order.status),
                 ),
               ],
             ),
             const SizedBox(height: 18),
             _DetailRow(label: 'Status', value: order.status),
+            _DetailRow(label: 'Payment', value: order.paymentStatusLabel),
             _DetailRow(label: 'Date', value: order.dateLabel),
             _DetailRow(label: 'Fulfillment', value: order.fulfillmentLabel),
-            _DetailRow(label: 'Payment', value: order.paymentMethod),
+            _DetailRow(label: 'Payment Method', value: order.paymentMethod),
             _DetailRow(
               label: 'Estimated Delivery',
               value: order.estimatedDelivery,
@@ -299,9 +400,9 @@ class _OrderDetailsSheet extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Items',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (order.items.isEmpty)
@@ -325,23 +426,43 @@ class _OrderItemLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final price =
-        item.price > 0 ? 'CAD \$${item.price.toStringAsFixed(2)}' : '';
+    final price = item.price > 0
+        ? 'CAD \$${item.price.toStringAsFixed(2)}'
+        : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              '${item.quantity}x ${item.name}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  '${item.quantity}x ${item.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              if (price.isNotEmpty) ...[
+                const SizedBox(width: 12),
+                Text(price, style: TextStyle(color: Colors.grey.shade700)),
+              ],
+            ],
           ),
-          if (price.isNotEmpty) ...[
-            const SizedBox(width: 12),
-            Text(price, style: TextStyle(color: Colors.grey.shade700)),
+          if (item.optionsLabel.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              item.optionsLabel,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+          ],
+          if (item.specialInstructions.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Note: ${item.specialInstructions}',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
           ],
         ],
       ),
@@ -405,12 +526,14 @@ class _TimelineStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isComplete ? Colors.deepOrange : Colors.grey.shade400;
+    final color = isComplete
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey.shade400;
     final icon = isCurrent
         ? Icons.radio_button_checked
         : isComplete
-            ? Icons.check_circle
-            : Icons.circle_outlined;
+        ? Icons.check_circle
+        : Icons.circle_outlined;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -546,9 +669,9 @@ class _ScrollableStateMessage extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
@@ -561,7 +684,7 @@ class _ScrollableStateMessage extends StatelessWidget {
           child: ElevatedButton(
             onPressed: onPressed,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepOrange,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -586,6 +709,7 @@ class RecentOrder {
     required this.fulfillmentType,
     required this.shippingAddress,
     required this.paymentMethod,
+    required this.paymentStatus,
     required this.estimatedDelivery,
     required this.actualDelivery,
     required this.items,
@@ -599,6 +723,7 @@ class RecentOrder {
   final String fulfillmentType;
   final String shippingAddress;
   final String paymentMethod;
+  final String paymentStatus;
   final String estimatedDelivery;
   final String actualDelivery;
   final List<RecentOrderItem> items;
@@ -609,77 +734,111 @@ class RecentOrder {
 
   String get fulfillmentLabel => _humanize(fulfillmentType);
 
+  String get paymentStatusLabel => _humanize(paymentStatus);
+
+  bool get canCancel {
+    if (id.trim().isEmpty) return false;
+    final normalized = status.toLowerCase();
+    return normalized == 'created' || normalized == 'paid';
+  }
+
   factory RecentOrder.fromJson(Map<String, dynamic> json) {
-    final items = _readList(
-      json,
-      const ['items', 'order_items', 'orderItems', 'products'],
-    ).map(RecentOrderItem.fromJson).toList(growable: false);
+    final items = _readList(json, const [
+      'items',
+      'order_items',
+      'orderItems',
+      'products',
+    ]).map(RecentOrderItem.fromJson).toList(growable: false);
     final dateLabel = _formatDate(
-      _firstValue(
-        json,
-        const ['created_at', 'createdAt', 'order_date', 'orderDate', 'date'],
-      ),
+      _firstValue(json, const [
+        'created_at',
+        'createdAt',
+        'order_date',
+        'orderDate',
+        'date',
+      ]),
     );
+    final paymentValue = _firstValue(json, const ['payment']);
+    final paymentMap = paymentValue is Map
+        ? paymentValue.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
 
     return RecentOrder(
-      id: _firstString(
-        json,
-        const ['order_id', 'orderId', 'order_no', 'orderNumber', 'id'],
-      ),
+      id: _firstString(json, const [
+        'order_id',
+        'orderId',
+        'order_no',
+        'orderNumber',
+        'id',
+      ]),
       status: _humanize(
-        _firstString(
-          json,
-          const ['status', 'order_status', 'orderStatus', 'current_status'],
-          fallback: 'Pending',
-        ),
+        _firstString(json, const [
+          'status',
+          'order_status',
+          'orderStatus',
+          'current_status',
+        ], fallback: 'Pending'),
       ),
       dateLabel: dateLabel.isEmpty ? 'Date unavailable' : dateLabel,
-      totalAmount: _firstDouble(
-        json,
-        const ['total_amount', 'totalAmount', 'grand_total', 'total', 'amount'],
-      ),
-      itemCount: _firstInt(
-        json,
-        const ['item_count', 'itemCount', 'total_items', 'totalItems'],
-        fallback: items.fold<int>(0, (sum, item) => sum + item.quantity),
-      ),
-      fulfillmentType: _firstString(
-        json,
-        const ['fulfillment_type', 'fulfillmentType', 'delivery_mode', 'type'],
-      ),
+      totalAmount: _firstDouble(json, const [
+        'total_amount',
+        'totalAmount',
+        'grand_total',
+        'total',
+        'amount',
+      ]),
+      itemCount: _firstInt(json, const [
+        'item_count',
+        'itemCount',
+        'total_items',
+        'totalItems',
+      ], fallback: items.fold<int>(0, (sum, item) => sum + item.quantity)),
+      fulfillmentType: _firstString(json, const [
+        'fulfillment_type',
+        'fulfillmentType',
+        'delivery_mode',
+        'type',
+      ]),
       shippingAddress: _formatAddress(
-        _firstValue(
-          json,
-          const [
-            'shipping_address',
-            'shippingAddress',
-            'delivery_address',
-            'address',
-          ],
-        ),
+        _firstValue(json, const [
+          'shipping_address',
+          'shippingAddress',
+          'delivery_address',
+          'address',
+        ]),
       ),
       paymentMethod: _formatPayment(
-        _firstValue(
-          json,
-          const ['payment_method', 'paymentMethod', 'payment_method_name'],
-        ),
+        _firstValue(json, const [
+          'payment_method',
+          'paymentMethod',
+          'payment_method_name',
+        ]),
+      ),
+      paymentStatus: _firstString(
+        json,
+        const ['payment_status', 'paymentStatus'],
+        fallback: _firstString(paymentMap, const [
+          'payment_status',
+          'paymentStatus',
+          'status',
+        ]),
       ),
       estimatedDelivery: _formatDate(
-        _firstValue(
-          json,
-          const ['estimated_delivery', 'estimatedDelivery', 'eta'],
-        ),
+        _firstValue(json, const [
+          'estimated_delivery',
+          'estimatedDelivery',
+          'eta',
+        ]),
       ),
       actualDelivery: _formatDate(
-        _firstValue(
-          json,
-          const [
-            'actual_delivery',
-            'actualDelivery',
-            'delivered_at',
-            'deliveredAt',
-          ],
-        ),
+        _firstValue(json, const [
+          'actual_delivery',
+          'actualDelivery',
+          'delivered_at',
+          'deliveredAt',
+        ]),
       ),
       items: items,
     );
@@ -691,24 +850,94 @@ class RecentOrderItem {
     required this.name,
     required this.quantity,
     required this.price,
+    this.options = const [],
+    this.specialInstructions = '',
   });
 
   final String name;
   final int quantity;
   final double price;
+  final List<RecentOrderItemOption> options;
+  final String specialInstructions;
+
+  String get optionsLabel {
+    if (options.isEmpty) return '';
+
+    final grouped = <String, List<String>>{};
+    for (final option in options) {
+      final optionName = option.name.trim();
+      if (optionName.isEmpty) continue;
+
+      final groupName = option.groupName.trim();
+      grouped.putIfAbsent(groupName, () => <String>[]).add(optionName);
+    }
+
+    return grouped.entries
+        .map((entry) {
+          final names = entry.value.join(', ');
+          return entry.key.isEmpty ? names : '${entry.key}: $names';
+        })
+        .where((text) => text.trim().isNotEmpty)
+        .join(' · ');
+  }
 
   factory RecentOrderItem.fromJson(Map<String, dynamic> json) {
     return RecentOrderItem(
-      name: _firstString(
-        json,
-        const ['product_name', 'productName', 'name', 'title'],
-        fallback: _formatNestedName(json['product']),
-      ),
-      quantity: _firstInt(json, const ['quantity', 'qty', 'count'], fallback: 1),
-      price: _firstDouble(
-        json,
-        const ['price', 'unit_price', 'unitPrice', 'total_price', 'totalPrice'],
-      ),
+      name: _firstString(json, const [
+        'product_name',
+        'productName',
+        'name',
+        'title',
+      ], fallback: _formatNestedName(json['product'])),
+      quantity: _firstInt(json, const [
+        'quantity',
+        'qty',
+        'count',
+      ], fallback: 1),
+      price: _firstDouble(json, const [
+        'price',
+        'unit_price',
+        'unitPrice',
+        'total_price',
+        'totalPrice',
+      ]),
+      options: _readList(json, const [
+        'selected_options',
+        'selectedOptions',
+        'order_item_options',
+        'orderItemOptions',
+        'options',
+      ]).map(RecentOrderItemOption.fromJson).toList(growable: false),
+      specialInstructions: _firstString(json, const [
+        'special_instructions',
+        'specialInstructions',
+      ]),
+    );
+  }
+}
+
+class RecentOrderItemOption {
+  const RecentOrderItemOption({required this.name, this.groupName = ''});
+
+  final String name;
+  final String groupName;
+
+  factory RecentOrderItemOption.fromJson(Map<String, dynamic> json) {
+    return RecentOrderItemOption(
+      name: _firstString(json, const [
+        'option_name',
+        'optionName',
+        'name',
+        'title',
+        'product_name',
+        'productName',
+      ]),
+      groupName: _firstString(json, const [
+        'group_name',
+        'groupName',
+        'option_group_name',
+        'optionGroupName',
+      ]),
     );
   }
 }
@@ -811,17 +1040,18 @@ String _formatAddress(dynamic value) {
         data['address'];
     final province = data['province'] ?? data['state'];
     final postalCode = data['postal_code'] ?? data['postalCode'] ?? data['zip'];
-    final parts = [
-      data['receiver_name'] ?? data['receiverName'],
-      street,
-      data['city'],
-      province,
-      postalCode,
-      data['country'],
-    ]
-        .where((part) => part != null && part.toString().trim().isNotEmpty)
-        .map((part) => part.toString().trim())
-        .toList();
+    final parts =
+        [
+              data['receiver_name'] ?? data['receiverName'],
+              street,
+              data['city'],
+              province,
+              postalCode,
+              data['country'],
+            ]
+            .where((part) => part != null && part.toString().trim().isNotEmpty)
+            .map((part) => part.toString().trim())
+            .toList();
     return parts.join(', ');
   }
   return value.toString();
@@ -834,7 +1064,8 @@ String _formatPayment(dynamic value) {
     final data = value.map<String, dynamic>(
       (key, value) => MapEntry(key.toString(), value),
     );
-    final label = data['display_label'] ?? data['displayLabel'] ?? data['label'];
+    final label =
+        data['display_label'] ?? data['displayLabel'] ?? data['label'];
     final brand = data['card_brand'] ?? data['brand'] ?? data['type'];
     final last4 = data['card_last4'] ?? data['last4'] ?? data['last_four'];
     if (label != null && label.toString().trim().isNotEmpty) {
@@ -896,7 +1127,7 @@ int _statusRank(String status) {
   return 0;
 }
 
-Color _statusColor(String status) {
+Color _statusColor(BuildContext context, String status) {
   final normalized = status.toLowerCase();
   if (normalized.contains('cancel') || normalized.contains('refund')) {
     return Colors.red.shade700;
@@ -917,7 +1148,7 @@ Color _statusColor(String status) {
       normalized.contains('confirm') ||
       normalized.contains('accept') ||
       normalized.contains('paid')) {
-    return Colors.deepOrange.shade700;
+    return Theme.of(context).colorScheme.primary;
   }
-  return Colors.orange.shade800;
+  return Theme.of(context).colorScheme.primary;
 }

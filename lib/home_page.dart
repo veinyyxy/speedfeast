@@ -45,7 +45,10 @@ class HomePage extends StatelessWidget {
           children: [
             // Menu buttons
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -78,14 +81,23 @@ class HomePage extends StatelessWidget {
               deliveryFee: 'Free Delivery',
             ),
             _HorizontalScrollSection(
-                title: 'Title',
-                imagePaths: ['assets/images/pears.jpg', 'assets/images/watermelon.jpg', 'assets/images/carrots.jpg', 'assets/images/cat.jpg']
+              title: 'Title',
+              imagePaths: [
+                'assets/images/pears.jpg',
+                'assets/images/watermelon.jpg',
+                'assets/images/carrots.jpg',
+                'assets/images/cat.jpg',
+              ],
             ),
             const SizedBox(height: 16),
             // Horizontal scrollable section 2
             _HorizontalScrollSection(
-                title: 'Title',
-                imagePaths: ['assets/images/radish.jpg', 'assets/images/mushrooms.jpg', 'assets/images/cherries.jpg']
+              title: 'Title',
+              imagePaths: [
+                'assets/images/radish.jpg',
+                'assets/images/mushrooms.jpg',
+                'assets/images/cherries.jpg',
+              ],
             ),
           ],
         ),
@@ -93,14 +105,8 @@ class HomePage extends StatelessWidget {
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.explore),
-            label: 'Explore',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
           BottomNavigationBarItem(
             icon: Icon(Icons.shopping_cart),
             label: 'Cart',
@@ -109,13 +115,14 @@ class HomePage extends StatelessWidget {
             icon: Icon(Icons.notifications),
             label: 'Notifications',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: Theme.of(
+          context,
+        ).bottomNavigationBarTheme.selectedItemColor,
+        unselectedItemColor: Theme.of(
+          context,
+        ).bottomNavigationBarTheme.unselectedItemColor,
         showSelectedLabels: false,
         showUnselectedLabels: false,
       ),
@@ -180,15 +187,15 @@ class _BannerSectionState extends State<_BannerSection> {
         ),
         const SizedBox(height: 8),
         SmoothPageIndicator(
-          controller: _pageController,  // PageController
+          controller: _pageController, // PageController
           count: _bannerImages.length, // 总页数
           effect: const ExpandingDotsEffect(
             activeDotColor: Colors.black, // 选中点颜色
-            dotColor: Colors.grey,        // 未选中点颜色
-            dotHeight: 8,                 // 点的高度
-            dotWidth: 8,                  // 点的宽度
-            expansionFactor: 4,           // 选中点扩大的比例
-            spacing: 5.0,                 // 点之间的间距
+            dotColor: Colors.grey, // 未选中点颜色
+            dotHeight: 8, // 点的高度
+            dotWidth: 8, // 点的宽度
+            expansionFactor: 4, // 选中点扩大的比例
+            spacing: 5.0, // 点之间的间距
           ),
         ),
       ],
@@ -202,7 +209,10 @@ class _BannerSectionState extends State<_BannerSection> {
         image: DecorationImage(
           image: AssetImage(imagePath),
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken), // 添加一个暗色滤镜使文字更清晰
+          colorFilter: ColorFilter.mode(
+            Colors.black.withValues(alpha: 0.3),
+            BlendMode.darken,
+          ), // 添加一个暗色滤镜使文字更清晰
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -230,7 +240,8 @@ class _HorizontalScrollSection extends StatefulWidget {
   });
 
   @override
-  State<_HorizontalScrollSection> createState() => _HorizontalScrollSectionState();
+  State<_HorizontalScrollSection> createState() =>
+      _HorizontalScrollSectionState();
 }
 
 class _HorizontalScrollSectionState extends State<_HorizontalScrollSection> {
@@ -263,7 +274,8 @@ class _HorizontalScrollSectionState extends State<_HorizontalScrollSection> {
   void _checkButtonVisibility() {
     setState(() {
       _showLeftButton = _scrollController.offset > 0;
-      _showRightButton = _scrollController.offset < _scrollController.position.maxScrollExtent;
+      _showRightButton =
+          _scrollController.offset < _scrollController.position.maxScrollExtent;
     });
   }
 
@@ -321,24 +333,31 @@ class _HorizontalScrollSectionState extends State<_HorizontalScrollSection> {
                     ),
                     TextDescription(
                       "Product Name Here",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     TextDescription(
                       "\$19.99",
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                        fontSize: 16,
+                      ),
                     ),
                     // 你可以在这里添加更多的 TextDescription 对象
                     // TextDescription("Extra Info", style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
                   ];
                   return ProductCard(
-                      imagePath: widget.imagePaths[index],
-                      descriptions: productDescriptions,
+                    imagePath: widget.imagePaths[index],
+                    descriptions: productDescriptions,
                     onQuantityChanged: (count) {
                       print('Quantity changed to: $count');
                       // 在这里你可以更新全局的购物车状态等
                     },
-                      width: 180,
-                      height: 100,
+                    width: 180,
+                    height: 100,
                   );
                 },
               ),
@@ -350,10 +369,16 @@ class _HorizontalScrollSectionState extends State<_HorizontalScrollSection> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
-                    icon: const Icon(Icons.chevron_left_rounded, size: 40, color: Colors.black),
+                    icon: const Icon(
+                      Icons.chevron_left_rounded,
+                      size: 40,
+                      color: Colors.black,
+                    ),
                     onPressed: _scrollLeft,
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(Colors.white.withValues(alpha: .7)),
+                      backgroundColor: WidgetStateProperty.all(
+                        Colors.white.withValues(alpha: .7),
+                      ),
                     ),
                   ),
                 ),
@@ -365,10 +390,16 @@ class _HorizontalScrollSectionState extends State<_HorizontalScrollSection> {
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: IconButton(
-                    icon: const Icon(Icons.chevron_right_rounded, size: 40, color: Colors.black),
+                    icon: const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 40,
+                      color: Colors.black,
+                    ),
                     onPressed: _scrollRight,
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.all(Colors.white.withValues(alpha: .7)),
+                      backgroundColor: WidgetStateProperty.all(
+                        Colors.white.withValues(alpha: .7),
+                      ),
                     ),
                   ),
                 ),

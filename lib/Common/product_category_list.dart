@@ -18,6 +18,16 @@ class ProductCategoryList extends StatelessWidget {
   });
 
   void _openProductDetail(BuildContext context, Product2ItemData item) {
+    if (!item.isAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.name} is currently unavailable.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final serviceProvider = context.read<ServiceProvider>();
     final cartQuantity = serviceProvider.cartItems
         .where((cartItem) => cartItem.productId == item.id)
@@ -33,14 +43,30 @@ class ProductCategoryList extends StatelessWidget {
           imageProvider: item.resolveImageProvider(),
           basePrice: item.basePrice,
           initialQuantity: cartQuantity > 0 ? cartQuantity : 1,
-          optionGroups: const [],
+          optionGroups: item.optionGroups,
           onAddToOrder: (orderData) {
-            final optionsKey = orderData.selections.entries
-                .where((entry) => entry.value.isNotEmpty)
-                .map((entry) => '${entry.key}:${entry.value.join(",")}')
-                .join('|');
+            final optionParts =
+                orderData.selections.entries
+                    .where((entry) => entry.value.isNotEmpty)
+                    .map((entry) {
+                      final values = entry.value.toList()..sort();
+                      return '${entry.key}:${values.join(",")}';
+                    })
+                    .toList()
+                  ..sort();
+            final optionsKey = optionParts.join('|');
+            final specialInstructions = orderData.specialInstructions.trim();
+            final specialInstructionsKey = specialInstructions.isEmpty
+                ? ''
+                : 'note:${Uri.encodeComponent(specialInstructions)}';
+            final itemKeyParts = [
+              if (optionsKey.isNotEmpty) optionsKey,
+              if (specialInstructionsKey.isNotEmpty) specialInstructionsKey,
+            ];
             final orderItem = OrderItem(
-              id: optionsKey.isEmpty ? item.id : '${item.id}|$optionsKey',
+              id: itemKeyParts.isEmpty
+                  ? item.id
+                  : '${item.id}|${itemKeyParts.join("|")}',
               productId: item.id,
               name: item.name,
               quantity: orderData.quantity,
@@ -48,10 +74,14 @@ class ProductCategoryList extends StatelessWidget {
               imagePath: item.imageUrl ?? 'assets/images/hamberger2.jpg',
               description: item.description,
               selectedOptions: orderData.selections,
+              specialInstructions: specialInstructions,
             );
 
-            if (optionsKey.isEmpty) {
-              serviceProvider.setCartItemQuantity(orderItem, orderData.quantity);
+            if (itemKeyParts.isEmpty) {
+              serviceProvider.setCartItemQuantity(
+                orderItem,
+                orderData.quantity,
+              );
             } else {
               serviceProvider.addToCart(orderItem);
             }
@@ -59,7 +89,9 @@ class ProductCategoryList extends StatelessWidget {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Added ${orderData.quantity} x ${item.name} to order'),
+                content: Text(
+                  'Added ${orderData.quantity} x ${item.name} to order',
+                ),
                 behavior: SnackBarBehavior.floating,
                 backgroundColor: Colors.green,
               ),
@@ -79,17 +111,14 @@ class ProductCategoryList extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Text(
             categoryName,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: items.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (context, index) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final item = items[index];
             final serviceProvider = context.watch<ServiceProvider>();
@@ -103,7 +132,12 @@ class ProductCategoryList extends StatelessWidget {
               description: item.description,
               imageUrl: item.imageUrl,
               initialCount: cartQuantity,
+              isAvailable: item.isAvailable,
+              unavailableLabel: item.unavailableLabel,
               onQuantityChanged: (count) {
+                if (!item.isAvailable) {
+                  return;
+                }
                 serviceProvider.setCartItemQuantity(
                   OrderItem(
                     id: item.id,
@@ -132,6 +166,8 @@ class Product2ItemData {
   final String price;
   final String description;
   final String? imageUrl;
+  final String status;
+  final List<ProductDetailOptionGroup> optionGroups;
 
   Product2ItemData({
     required this.id,
@@ -139,7 +175,44 @@ class Product2ItemData {
     required this.price,
     required this.description,
     this.imageUrl,
+    this.status = 'active',
+    this.optionGroups = const [],
   });
+
+  factory Product2ItemData.fromJson(
+    Map<String, dynamic> json, {
+    String imageRoot = '',
+  }) {
+    final productId = json['product_id']?.toString() ?? '';
+    final rawImageUrl = json['image_url']?.toString();
+    final imageUrl = rawImageUrl == null || rawImageUrl.isEmpty
+        ? null
+        : rawImageUrl.startsWith('http://') ||
+              rawImageUrl.startsWith('https://') ||
+              rawImageUrl.startsWith('assets/')
+        ? rawImageUrl
+        : '$imageRoot$rawImageUrl';
+
+    return Product2ItemData(
+      id: productId,
+      name:
+          json['product_name']?.toString() ??
+          json['name']?.toString() ??
+          'Unnamed product',
+      price: json['base_price']?.toString() ?? json['price']?.toString() ?? '0',
+      description: json['description']?.toString() ?? '',
+      imageUrl: imageUrl,
+      status:
+          (json['status']?.toString() ??
+                  json['product_status']?.toString() ??
+                  'active')
+              .trim()
+              .toLowerCase(),
+      optionGroups: ProductDetailOptionGroup.listFromJson(
+        json['option_groups'] ?? json['optionGroups'],
+      ),
+    );
+  }
 
   double get basePrice {
     final cleaned = price.replaceAll(RegExp(r'[^\d.]'), '');
@@ -150,6 +223,18 @@ class Product2ItemData {
     if (price.contains(r'$')) return price;
     final value = basePrice;
     return 'CA\$${value.toStringAsFixed(2)}';
+  }
+
+  bool get isAvailable => status == 'active';
+
+  String get unavailableLabel {
+    if (status == 'inactive') {
+      return 'Temporarily unavailable';
+    }
+    if (status == 'archived') {
+      return 'Unavailable';
+    }
+    return 'Unavailable';
   }
 
   ImageProvider resolveImageProvider() {

@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Controller/service_provider.dart';
 
 import 'home_page_exclusive2.dart';
-import 'OrderPage/order_list_page.dart';
+import 'OrderPage/order_page.dart';
 import 'OrderPage/recent_order_page.dart';
 import 'MoreMenu/more_main_menu.dart';
 import 'MoreMenu/more_my_account_personal_info.dart';
@@ -19,17 +19,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // 加载 .env 文件
   await dotenv.load(fileName: "configs/.env");
-  
+
   final serviceProvider = ServiceProvider();
   await serviceProvider.initialize();
   //await serviceProvider.loadConfig();
   //await serviceProvider.fetchInitData();
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: serviceProvider,
-      child: const MyApp(),
-    ),
+    ChangeNotifierProvider.value(value: serviceProvider, child: const MyApp()),
   );
 }
 
@@ -37,28 +34,36 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Colors.lightBlue;
+
     return MaterialApp(
       theme: ThemeData(
         // 将主色调改为 DeepOrange
-        primarySwatch: Colors.deepOrange,
+        primarySwatch: primaryColor,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          primary: primaryColor,
+          secondary: primaryColor,
+          surface: Colors.white,
+        ),
         scaffoldBackgroundColor: Colors.white, // Pure white background
         appBarTheme: const AppBarTheme(
           // AppBar 背景色改为 DeepOrange
           backgroundColor: Colors.white70,
           elevation: 0, // No shadow for app bar
           // AppBar 图标颜色改为白色，与 DeepOrange 背景形成对比
-          iconTheme: IconThemeData(color: Colors.deepOrange),
+          iconTheme: IconThemeData(color: primaryColor),
           titleTextStyle: TextStyle(
             // AppBar 标题文字颜色改为白色
-            color: Colors.deepOrange,
+            color: primaryColor,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
-        iconTheme: IconThemeData(color: Colors.deepOrange),
+        iconTheme: const IconThemeData(color: primaryColor),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            foregroundColor: Colors.deepOrange,
+            foregroundColor: primaryColor,
             //minimumSize: Size(double.infinity, 50),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -66,32 +71,51 @@ class MyApp extends StatelessWidget {
           ),
         ),
         buttonTheme: ButtonThemeData(
-          buttonColor: Colors.deepOrange,
+          buttonColor: primaryColor,
           textTheme: ButtonTextTheme.primary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25.0),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: primaryColor),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+          ),
+        ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.deepOrange,
-            side: const BorderSide(color: Colors.deepOrange, width: 2),
+            foregroundColor: primaryColor,
+            side: const BorderSide(color: primaryColor, width: 2),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(25.0),
             ),
           ),
-        )
-        // 如果你需要按钮、浮动操作按钮等也使用 DeepOrange
-        // colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.deepOrange),
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+        ),
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          selectedItemColor: primaryColor,
+          unselectedItemColor: Colors.grey,
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: primaryColor,
+        ),
       ),
       routes: {
         '/': (context) => HomePage(),
-        '/order_page': (context) => OrderListPage(),
+        '/order_page': (context) => OrderPage(),
         '/order_page/recent_orders': (context) => RecentOrdersPage(),
         '/more_page': (context) => MoreMainMenu(),
         '/more_page/personal_info': (context) => PersonalInfoPage(),
         '/more_page/payment_options': (context) => AddPaymentMethodPage(),
-        '/more_page/payment_options/payment_list': (context) => PaymentListPage(),
+        '/more_page/payment_options/payment_list': (context) =>
+            PaymentListPage(),
         'register/mobile_number_page': (context) => MobileNumberPage(),
         '/register/sign_up_screen': (context) => SignUpScreen(),
         '/register/VerificationPage': (context) {
@@ -105,15 +129,20 @@ class MyApp extends StatelessWidget {
               return const Text('Error: Email or Phone argument not provided');
             }
             final String emailOrPhoneValue = emailAddress ?? phoneNumber!;
-            return VerificationPage(emailOrPhone: emailOrPhoneValue,
-                type: emailAddress == null ? 'phone' : 'email',
-                onVerificationSuccess: () {
-                  debugPrint('------------------Verification successful!-----------------------');
-                  Navigator.pushNamed(context, '/register/base_info_page', arguments: {
-                    'email': emailAddress,
-                    'phone': phoneNumber,
-                  });
-                });
+            return VerificationPage(
+              emailOrPhone: emailOrPhoneValue,
+              type: emailAddress == null ? 'phone' : 'email',
+              onVerificationSuccess: () {
+                debugPrint(
+                  '------------------Verification successful!-----------------------',
+                );
+                Navigator.pushNamed(
+                  context,
+                  '/register/base_info_page',
+                  arguments: {'email': emailAddress, 'phone': phoneNumber},
+                );
+              },
+            );
           }
           return const Text('Error: Invalid arguments for VerificationPage');
         },
@@ -130,13 +159,11 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
     );
   }
- /* @override
+
+  /* @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Menu Item Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blueGrey,
-      ),
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Menu Items'),

@@ -75,10 +75,12 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
     final username = _readUserText(user, ['username']) ?? '';
     final firstName = _readUserText(user, ['first_name', 'firstName']);
     final lastName = _readUserText(user, ['last_name', 'lastName']);
-    final phoneNumber = _readUserText(
-      user,
-      ['phone_number', 'phoneNumber', 'cell_phone', 'phone'],
-    );
+    final phoneNumber = _readUserText(user, [
+      'phone_number',
+      'phoneNumber',
+      'cell_phone',
+      'phone',
+    ]);
     final nameParts = _splitUsername(username);
     final addresses = (profileData['addresses'] as List? ?? [])
         .whereType<Map>()
@@ -91,8 +93,9 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
         break;
       }
     }
-    selectedAddressId ??=
-        addresses.isNotEmpty ? addresses.first['address_id']?.toString() : null;
+    selectedAddressId ??= addresses.isNotEmpty
+        ? addresses.first['address_id']?.toString()
+        : null;
 
     setState(() {
       _firstNameController.text = firstName ?? nameParts[0];
@@ -126,22 +129,22 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
 
   String _formatAddress(Map<String, dynamic> address) {
     return [
-      address['street'],
-      address['district'],
-      address['city'],
-      address['province'],
-      address['country'],
-      address['postal_code'],
-    ]
+          address['street'],
+          address['district'],
+          address['city'],
+          address['province'],
+          address['country'],
+          address['postal_code'],
+        ]
         .where((value) => value != null && value.toString().trim().isNotEmpty)
         .map((value) => value.toString())
         .join(', ');
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleAddressSelection(String id) async {
@@ -188,7 +191,8 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
       return;
     }
 
-    final wantsPasswordChange = _originalPasswordController.text.isNotEmpty ||
+    final wantsPasswordChange =
+        _originalPasswordController.text.isNotEmpty ||
         _newPasswordController.text.isNotEmpty ||
         _confirmPasswordController.text.isNotEmpty;
     if (wantsPasswordChange &&
@@ -199,16 +203,18 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
 
     setState(() => _isSaving = true);
     final response = await context.read<ServiceProvider>().updatePersonalInfo(
-          firstName: _firstNameController.text,
-          lastName: _lastNameController.text,
-          email: _emailController.text,
-          cellPhone: _phoneController.text,
-          originalPassword:
-              wantsPasswordChange ? _originalPasswordController.text : null,
-          newPassword: wantsPasswordChange ? _newPasswordController.text : null,
-          confirmPassword:
-              wantsPasswordChange ? _confirmPasswordController.text : null,
-        );
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
+      email: _emailController.text,
+      cellPhone: _phoneController.text,
+      originalPassword: wantsPasswordChange
+          ? _originalPasswordController.text
+          : null,
+      newPassword: wantsPasswordChange ? _newPasswordController.text : null,
+      confirmPassword: wantsPasswordChange
+          ? _confirmPasswordController.text
+          : null,
+    );
 
     if (!mounted) return;
     setState(() => _isSaving = false);
@@ -239,9 +245,11 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
 
     if (!mounted) return;
     if (response == null) {
-      _showSnackBar(address == null
-          ? 'Failed to add address.'
-          : 'Failed to update address.');
+      _showSnackBar(
+        address == null
+            ? 'Failed to add address.'
+            : 'Failed to update address.',
+      );
       return;
     }
 
@@ -253,7 +261,8 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
     Map<String, dynamic>? address,
   }) async {
     final receiverController = TextEditingController(
-      text: address?['receiver_name']?.toString() ??
+      text:
+          address?['receiver_name']?.toString() ??
           '${_firstNameController.text} ${_lastNameController.text}'.trim(),
     );
     final countryController = TextEditingController(
@@ -333,7 +342,7 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                     });
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepOrange,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                   ),
                   child: const Text('Save'),
                 ),
@@ -373,7 +382,9 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Confirm Delete'),
-            content: const Text('Are you sure you want to delete this address?'),
+            content: const Text(
+              'Are you sure you want to delete this address?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -391,24 +402,26 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          color: Colors.deepOrange,
+          color: primaryColor,
           onPressed: () {
             Navigator.pop(context);
           },
         ),
-        title: const Text(
+        title: Text(
           'PERSONAL INFO',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.deepOrange,
+            color: primaryColor,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
       ),
       body: _isLoading
@@ -421,8 +434,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                   children: [
                     const Text(
                       'Profile',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     EditableField(
@@ -451,8 +466,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                     const SizedBox(height: 20),
                     const Text(
                       'Delivery Address List',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     if (_addresses.isEmpty)
@@ -471,8 +488,7 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                           color: Colors.red,
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20.0),
-                          child:
-                              const Icon(Icons.delete, color: Colors.white),
+                          child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -482,7 +498,7 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                             label: address['is_default'] == true
                                 ? 'Default Delivery Address'
                                 : (address['receiver_name']?.toString() ??
-                                    'Delivery Address'),
+                                      'Delivery Address'),
                             value: _formatAddress(address),
                             isSelected: _selectedAddressId == addressId,
                             onTap: () => _handleAddressSelection(addressId),
@@ -497,8 +513,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                     const SizedBox(height: 20),
                     const Text(
                       'Password',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     PasswordField(
@@ -537,7 +555,7 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                     ElevatedButton(
                       onPressed: _isSaving ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepOrange,
+                        backgroundColor: primaryColor,
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -545,8 +563,10 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
                       ),
                       child: Text(
                         _isSaving ? 'Updating...' : 'Update',
-                        style:
-                            const TextStyle(fontSize: 16, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -557,6 +577,8 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
   }
 
   Widget _buildAddAddressButton() {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return GestureDetector(
       onTap: () => _openAddressDialog(),
       child: Container(
@@ -565,14 +587,14 @@ class PersonalInfoPageState extends State<PersonalInfoPage> {
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               'Add a new Address',
-              style: TextStyle(fontSize: 16, color: Colors.deepOrange),
+              style: TextStyle(fontSize: 16, color: primaryColor),
             ),
-            Icon(Icons.add, color: Colors.deepOrange),
+            Icon(Icons.add, color: primaryColor),
           ],
         ),
       ),

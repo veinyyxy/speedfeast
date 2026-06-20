@@ -28,10 +28,12 @@ class DualModeLoginDialogContent extends StatefulWidget {
   const DualModeLoginDialogContent({super.key});
 
   @override
-  State<DualModeLoginDialogContent> createState() => _DualModeLoginDialogContentState();
+  State<DualModeLoginDialogContent> createState() =>
+      _DualModeLoginDialogContentState();
 }
 
-class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent> {
+class _DualModeLoginDialogContentState
+    extends State<DualModeLoginDialogContent> {
   // Initial login mode
   LoginMode _currentMode = LoginMode.password;
 
@@ -62,7 +64,9 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
   // Toggle login mode
   void _toggleLoginMode() {
     setState(() {
-      _currentMode = _currentMode == LoginMode.password ? LoginMode.otp : LoginMode.password;
+      _currentMode = _currentMode == LoginMode.password
+          ? LoginMode.otp
+          : LoginMode.password;
       _errorMessage = ''; // Clear error message on mode switch
     });
   }
@@ -97,7 +101,9 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
       });
 
       // TODO: Replace with actual OTP sending API call
-      await Future.delayed(const Duration(seconds: 2)); // Simulate network delay
+      await Future.delayed(
+        const Duration(seconds: 2),
+      ); // Simulate network delay
 
       setState(() {
         _isSendingOtp = false;
@@ -129,7 +135,8 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
       } else {
         // TODO: Replace with actual OTP verification API call.
         await Future.delayed(const Duration(seconds: 2));
-        if (_phoneController.text == '13800000000' && _otpController.text == '654321') {
+        if (_phoneController.text == '13800000000' &&
+            _otpController.text == '654321') {
           loginSuccess = true;
         }
       }
@@ -194,7 +201,7 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
 
             // 2. Dynamic Input Field (Password or OTP)
             if (_currentMode == LoginMode.password)
-            // Password Login Mode
+              // Password Login Mode
               TextFormField(
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
@@ -204,7 +211,11 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
                   prefixIcon: const Icon(Icons.lock),
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                    icon: Icon(
+                      _isPasswordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
                     onPressed: () {
                       setState(() {
                         _isPasswordVisible = !_isPasswordVisible;
@@ -220,7 +231,7 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
                 },
               )
             else
-            // OTP Login Mode
+              // OTP Login Mode
               Row(
                 children: <Widget>[
                   Expanded(
@@ -249,13 +260,15 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
                         : null,
                     child: _isSendingOtp
                         ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : Text(_countdownSeconds == 0 || _countdownSeconds == 60
-                        ? 'Send Code'
-                        : 'Resend ($_countdownSeconds s)'),
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _countdownSeconds == 0 || _countdownSeconds == 60
+                                ? 'Send Code'
+                                : 'Resend ($_countdownSeconds s)',
+                          ),
                   ),
                 ],
               ),
@@ -282,17 +295,14 @@ class _DualModeLoginDialogContentState extends State<DualModeLoginDialogContent>
                 ),
                 child: _isLoggingIn
                     ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                    : const Text(
-                  'LOG IN',
-                  style: TextStyle(fontSize: 18),
-                ),
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('LOG IN', style: TextStyle(fontSize: 18)),
               ),
             ),
 
@@ -330,37 +340,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Login Dialog Demo',
-      theme: ThemeData(
-        // 全局样式控制
-        primarySwatch: Colors.blue,
-        // 可以统一设置所有 ElevatedButton 的样式
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        // 可以统一设置所有 TextFormField 的样式
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.blue, width: 2),
-          ),
-        ),
-        useMaterial3: false,
-      ),
-      home: const HomeScreen(),
-    );
+    return MaterialApp(title: 'Login Dialog Demo', home: const HomeScreen());
   }
 }
 
@@ -384,12 +364,14 @@ class HomeScreen extends StatelessWidget {
             );
 
             // Handle the login result
-            String message = result == true ? 'Login Successful!' : 'Login Cancelled or Failed.';
+            String message = result == true
+                ? 'Login Successful!'
+                : 'Login Cancelled or Failed.';
 
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(message)),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(message)));
             }
           },
           child: const Text('Open Login Dialog'),

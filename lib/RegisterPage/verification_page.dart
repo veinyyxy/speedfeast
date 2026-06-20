@@ -32,7 +32,8 @@ class _VerificationPageState extends State<VerificationPage> {
   final formKey = GlobalKey<FormState>();
 
   // ======= 新增的状态变量用于校验逻辑 =======
-  String _verificationTypeMessage = 'email address'; // 动态显示在 UI 上的文本 (如 'email address' 或 'phone number')
+  String _verificationTypeMessage =
+      'email address'; // 动态显示在 UI 上的文本 (如 'email address' 或 'phone number')
   bool _isLoading = false; // 用于显示加载状态 (发送码或验证码时)
   String? _errorMessage; // 显示错误信息
   String? _successMessage; // 显示成功信息
@@ -45,7 +46,9 @@ class _VerificationPageState extends State<VerificationPage> {
   void initState() {
     super.initState();
     _determineVerificationType(); // 页面加载时判断验证类型
-    debugPrint('VerificationPage initialized with emailOrPhone: ${widget.emailOrPhone}');
+    debugPrint(
+      'VerificationPage initialized with emailOrPhone: ${widget.emailOrPhone}',
+    );
     _sendInitialCode(); // 页面加载后立即尝试发送初始验证码
   }
 
@@ -61,7 +64,9 @@ class _VerificationPageState extends State<VerificationPage> {
   void _determineVerificationType() {
     // 简单的正则表达式判断是否为电子邮件格式
     // 对于电话号码，生产环境可能需要更复杂的验证或使用像 `libphonenumber` 这样的库。
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     if (emailRegex.hasMatch(widget.emailOrPhone)) {
       _verificationTypeMessage = 'email address';
     } else {
@@ -75,7 +80,8 @@ class _VerificationPageState extends State<VerificationPage> {
     _countdownSeconds = 60; // 重置倒计时
     _timer?.cancel(); // 取消任何现有的计时器
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) { // 确保 Widget 仍在 Widget 树中，防止在 dispose 后调用 setState
+      if (!mounted) {
+        // 确保 Widget 仍在 Widget 树中，防止在 dispose 后调用 setState
         timer.cancel();
         return;
       }
@@ -100,15 +106,17 @@ class _VerificationPageState extends State<VerificationPage> {
     });
     final serviceProvider = context.read<ServiceProvider>();
     try {
-      bool res = await serviceProvider.sendVerificationCode(widget.emailOrPhone, widget.type);
-      if(res) {
-        if(widget.type == 'email') {
+      bool res = await serviceProvider.sendVerificationCode(
+        widget.emailOrPhone,
+        widget.type,
+      );
+      if (res) {
+        if (widget.type == 'email') {
           _successMessage = 'Verification code sent to your email.';
         } else {
           _successMessage = 'Verification code sent to your phone.';
         }
-      }
-      else {
+      } else {
         _errorMessage = 'Failed to send code. Please try again.';
       }
       _startCountdown(); // 无论成功失败，都启动倒计时
@@ -137,15 +145,17 @@ class _VerificationPageState extends State<VerificationPage> {
     final serviceProvider = context.read<ServiceProvider>();
 
     try {
-      bool res = await serviceProvider.sendVerificationCode(widget.emailOrPhone, widget.type);
-      if(res) {
-        if(widget.type == 'email') {
+      bool res = await serviceProvider.sendVerificationCode(
+        widget.emailOrPhone,
+        widget.type,
+      );
+      if (res) {
+        if (widget.type == 'email') {
           _successMessage = 'Verification code resent to your email.';
         } else {
           _successMessage = 'Verification code resent to your phone.';
         }
-      }
-      else {
+      } else {
         _errorMessage = 'Failed to send code. Please try again.';
       }
       _startCountdown(); // 重发后重新启动倒计时
@@ -172,17 +182,17 @@ class _VerificationPageState extends State<VerificationPage> {
 
     try {
       bool res = await serviceProvider.verifyVerificationCode(
-          widget.emailOrPhone,
-          pin,
-          widget.type, resData: _tokenInfo = {});
-      if(res){
+        widget.emailOrPhone,
+        pin,
+        widget.type,
+        resData: _tokenInfo = {},
+      );
+      if (res) {
         String testToken = _tokenInfo!['token'];
         serviceProvider.saveUserToken(testToken);
         debugPrint('Token: $testToken');
         _successMessage = 'Verification successful!';
-      }
-      else
-      {
+      } else {
         _errorMessage = 'Invalid code. Please try again.';
         debugPrint('Verification failed for $pin');
       }
@@ -216,22 +226,27 @@ class _VerificationPageState extends State<VerificationPage> {
     );
 
     // 判断 "Next" 按钮是否应该启用
-    bool isNextButtonEnabled = pinController.text.length == 4 && _successMessage == 'Verification successful!';
+    bool isNextButtonEnabled =
+        pinController.text.length == 4 &&
+        _successMessage == 'Verification successful!';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'APP Name',
           style: TextStyle(
-            color: Colors.black,
+            color: Theme.of(context).appBarTheme.titleTextStyle?.color,
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         // 添加返回按钮到 AppBar
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).appBarTheme.iconTheme?.color,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -243,10 +258,7 @@ class _VerificationPageState extends State<VerificationPage> {
             const SizedBox(height: 20),
             Text(
               'Enter the 4-digit code sent to your $_verificationTypeMessage:', // 动态显示是邮件还是电话
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.grey[800],
-              ),
+              style: TextStyle(fontSize: 20, color: Colors.grey[800]),
             ),
             const SizedBox(height: 8),
             Text(
@@ -285,7 +297,8 @@ class _VerificationPageState extends State<VerificationPage> {
               onChanged: (value) {
                 debugPrint('onChanged: $value');
                 // 如果用户开始重新输入 PIN，清除之前的成功/错误消息
-                if (value.length < 4 && (_successMessage != null || _errorMessage != null)) {
+                if (value.length < 4 &&
+                    (_successMessage != null || _errorMessage != null)) {
                   setState(() {
                     _successMessage = null;
                     _errorMessage = null;
@@ -306,39 +319,47 @@ class _VerificationPageState extends State<VerificationPage> {
                 style: const TextStyle(color: Colors.red, fontSize: 14),
               )
             else if (_successMessage != null)
-                Text(
-                  _successMessage!,
-                  style: const TextStyle(color: Colors.green, fontSize: 14),
-                ),
+              Text(
+                _successMessage!,
+                style: const TextStyle(color: Colors.green, fontSize: 14),
+              ),
             const SizedBox(height: 16),
 
             Text(
               'Tip: Make sure to check your inbox and spam folders',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
             const SizedBox(height: 30),
 
             // 重发按钮
             ElevatedButton(
-              onPressed: _countdownSeconds == 0 ? _resendCode : null, // 倒计时结束时才能点击
+              onPressed: _countdownSeconds == 0
+                  ? _resendCode
+                  : null, // 倒计时结束时才能点击
               style: ElevatedButton.styleFrom(
                 // 按钮前景颜色在禁用时变灰
-                foregroundColor: _countdownSeconds == 0 ? Colors.black : Colors.grey[600],
+                foregroundColor: _countdownSeconds == 0
+                    ? Colors.black
+                    : Colors.grey[600],
                 backgroundColor: Colors.grey[200],
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 elevation: 0,
               ),
               child: Text(
-                _countdownSeconds == 0 ? 'Resend' : 'Resend in $_countdownSeconds s', // 动态显示倒计时
+                _countdownSeconds == 0
+                    ? 'Resend'
+                    : 'Resend in $_countdownSeconds s', // 动态显示倒计时
                 style: TextStyle(
                   fontSize: 16,
-                  color: _countdownSeconds == 0 ? Colors.black : Colors.grey[600], // 文本颜色在禁用时变灰
+                  color: _countdownSeconds == 0
+                      ? Colors.black
+                      : Colors.grey[600], // 文本颜色在禁用时变灰
                 ),
               ),
             ),
@@ -365,26 +386,28 @@ class _VerificationPageState extends State<VerificationPage> {
                 // Next 按钮
                 FloatingActionButton.extended(
                   heroTag: "nextBtn",
-                  onPressed: isNextButtonEnabled // 根据 `isNextButtonEnabled` 动态启用/禁用
+                  onPressed:
+                      isNextButtonEnabled // 根据 `isNextButtonEnabled` 动态启用/禁用
                       ? () {
-                    debugPrint("Next button tapped after successful verification!");
-                    // 调用传入的回调函数，而不是硬编码的导航
-                    if (widget.onVerificationSuccess != null) {
-                      widget.onVerificationSuccess!();
-                    } else {
-                      // 如果没有提供回调，可以做一些默认处理，比如导航回主页或打印警告
-                      //debugPrint("No onVerificationSuccess callback provided. Defaulting to pop.");
-                      //Navigator.of(context).pop();
-                    }
-                  }
+                          debugPrint(
+                            "Next button tapped after successful verification!",
+                          );
+                          // 调用传入的回调函数，而不是硬编码的导航
+                          if (widget.onVerificationSuccess != null) {
+                            widget.onVerificationSuccess!();
+                          } else {
+                            // 如果没有提供回调，可以做一些默认处理，比如导航回主页或打印警告
+                            //debugPrint("No onVerificationSuccess callback provided. Defaulting to pop.");
+                            //Navigator.of(context).pop();
+                          }
+                        }
                       : null,
-                  label: const Text(
-                    'Next',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  label: const Text('Next', style: TextStyle(fontSize: 18)),
                   icon: const Icon(Icons.arrow_forward),
                   backgroundColor: isNextButtonEnabled
-                      ? Theme.of(context).primaryColor // 启用时使用主题主色
+                      ? Theme.of(context)
+                            .colorScheme
+                            .primary // 启用时使用主题主色
                       : Colors.grey[300], // 禁用时使用灰色
                   foregroundColor: Colors.white,
                   elevation: 0,

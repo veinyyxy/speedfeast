@@ -33,7 +33,8 @@ class _HomePageState extends State<HomePage> {
       id: '2',
       name: "Paneer Tikka Kathi Roll",
       price: "CA\$10.99",
-      description: "Marinated paneer in a creamy tomato sauce wrapped in a soft tortilla.",
+      description:
+          "Marinated paneer in a creamy tomato sauce wrapped in a soft tortilla.",
     ),
     Product2ItemData(
       id: '3',
@@ -72,7 +73,12 @@ class _HomePageState extends State<HomePage> {
         leading: Image.asset('assets/images/log.png'),
         title: Text(
           'SpeedFeast',
-          style: TextStyle(color: Colors.black, fontSize: 30, fontWeight: FontWeight.bold)),
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: Color.fromARGB(50, 255, 160, 122),
       ),
       body: CustomScrollView(
@@ -83,12 +89,12 @@ class _HomePageState extends State<HomePage> {
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
-              title: const Text('Speed Feast',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16.0,
-                  )),
-              background: Stack( // 使用 Stack 来叠加图片和文字
+              title: const Text(
+                'Speed Feast',
+                style: TextStyle(color: Colors.white, fontSize: 16.0),
+              ),
+              background: Stack(
+                // 使用 Stack 来叠加图片和文字
                 children: <Widget>[
                   Image.asset(
                     'assets/images/sushi.jpg',
@@ -96,7 +102,8 @@ class _HomePageState extends State<HomePage> {
                     width: double.infinity, // 确保图片宽度填充可用空间
                     height: double.infinity, // 确保图片高度填充可用空间
                   ),
-                  Positioned( // 定位文本到底部中间
+                  Positioned(
+                    // 定位文本到底部中间
                     bottom: 20.0, // 距离底部20像素
                     left: 0,
                     right: 0,
@@ -110,7 +117,8 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.white,
                             fontSize: 22.0,
                             fontWeight: FontWeight.bold,
-                            shadows: [ // 添加文字阴影使其更易读
+                            shadows: [
+                              // 添加文字阴影使其更易读
                               Shadow(
                                 blurRadius: 3.0,
                                 color: Colors.black,
@@ -143,14 +151,12 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (BuildContext context, int index) {
-                return ListTile(
-                  title: Text('列表项 $index'),
-                );
-              },
-              childCount: 50,
-            ),
+            delegate: SliverChildBuilderDelegate((
+              BuildContext context,
+              int index,
+            ) {
+              return ListTile(title: Text('列表项 $index'));
+            }, childCount: 50),
           ),
         ],
       ),
@@ -173,13 +179,22 @@ class _HomePageState extends State<HomePage> {
       )*/
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.deepOrange,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: Theme.of(
+          context,
+        ).bottomNavigationBarTheme.selectedItemColor,
+        unselectedItemColor: Theme.of(
+          context,
+        ).bottomNavigationBarTheme.unselectedItemColor,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_bag), label: 'Order'),
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
+            icon: Icon(Icons.shopping_bag),
+            label: 'Order',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
         ],
       ),

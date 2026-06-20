@@ -3,20 +3,34 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Common/service_config.dart';
 import 'api_service.dart';
 import '../Security/collect_features.dart';
 import '../Common/order_item.dart';
 
+class _SelectedOptionPriceResult {
+  final double total;
+  final bool hasMissingSelection;
+
+  const _SelectedOptionPriceResult({
+    required this.total,
+    this.hasMissingSelection = false,
+  });
+}
+
 class ServiceProvider with ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static const String _guestCartStorageKey = 'speedfeast_cart_guest';
+  static const String _userCartStoragePrefix = 'speedfeast_cart_user_';
 
   ServiceConfig? _config;
   dynamic _initData;
   bool _isLoggedIn = false;
   String? _userToken;
   String? _lastOrderError;
+  String? _lastPaymentError;
   String? _lastRecentOrdersError;
   late ApiService _apiService;
 
@@ -25,6 +39,7 @@ class ServiceProvider with ChangeNotifier {
   ServiceConfig? get config => _config;
   String? get userToken => _userToken;
   String? get lastOrderError => _lastOrderError;
+  String? get lastPaymentError => _lastPaymentError;
   String? get lastRecentOrdersError => _lastRecentOrdersError;
 
   Map<String, String> features = {};
@@ -32,12 +47,411 @@ class ServiceProvider with ChangeNotifier {
 
   // --- Cart Management ---
   final List<OrderItem> _cartItems = [];
+  String _activeCartStorageKey = _guestCartStorageKey;
+  bool _hasLoadedCart = false;
   List<OrderItem> get cartItems => _cartItems;
 
   int get cartCount => _cartItems.fold(0, (sum, item) => sum + item.quantity);
 
-  double get cartSubtotal =>
-      _cartItems.fold(0.0, (sum, item) => sum + item.subtotal);
+  double get cartSubtotal => _cartItems
+      .where((item) => item.isAvailable)
+      .fold(0.0, (sum, item) => sum + item.subtotal);
+
+  bool get hasUnavailableCartItems =>
+      _cartItems.any((item) => !item.isAvailable);
+
+  List<OrderItem> get unavailableCartItems =>
+      _cartItems.where((item) => !item.isAvailable).toList(growable: false);
+
+  String _cartStorageKeyForToken(String? token) {
+    final userId = _userIdFromToken(token);
+    if (userId == null || userId.isEmpty) return _guestCartStorageKey;
+    return '$_userCartStoragePrefix$userId';
+  }
+
+  String? _userIdFromToken(String? token) {
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return null;
+
+      final payloadJson = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final payload = jsonDecode(payloadJson);
+      if (payload is! Map) return null;
+
+      final userId = payload['user_id'] ?? payload['userId'] ?? payload['sub'];
+      final text = userId?.toString().trim() ?? '';
+      return text.isEmpty ? null : text;
+    } catch (e) {
+      debugPrint('Unable to read user id from token for cart storage: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadCartForStorageKey(String storageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawCart = prefs.getString(storageKey);
+    final nextItems = <OrderItem>[];
+
+    if (rawCart != null && rawCart.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawCart);
+        final rawItems = decoded is Map
+            ? decoded['items']
+            : decoded is List
+            ? decoded
+            : null;
+
+        if (rawItems is List) {
+          for (final rawItem in rawItems) {
+            if (rawItem is! Map) continue;
+            final item = OrderItem.fromJson(Map<String, dynamic>.from(rawItem));
+            if (item.id.isEmpty || item.productId.isEmpty) continue;
+            nextItems.add(item);
+          }
+        }
+      } catch (e) {
+        debugPrint('Unable to load cart from local storage: $e');
+      }
+    }
+
+    _activeCartStorageKey = storageKey;
+    _hasLoadedCart = true;
+    _cartItems
+      ..clear()
+      ..addAll(nextItems);
+    _refreshCartItemsFromProductData();
+  }
+
+  Future<void> _saveCartForStorageKey(String storageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_cartItems.isEmpty) {
+      await prefs.remove(storageKey);
+      return;
+    }
+
+    await prefs.setString(
+      storageKey,
+      jsonEncode({
+        'version': 1,
+        'updated_at': DateTime.now().toIso8601String(),
+        'items': _cartItems.map((item) => item.toJson()).toList(),
+      }),
+    );
+  }
+
+  void _persistCartForActiveUser() {
+    _saveCartForStorageKey(_activeCartStorageKey);
+  }
+
+  Future<void> _switchCartStorageForToken(String? token) async {
+    if (_hasLoadedCart) {
+      await _saveCartForStorageKey(_activeCartStorageKey);
+    }
+    await _loadCartForStorageKey(_cartStorageKeyForToken(token));
+  }
+
+  bool _refreshCartItemsFromProductData({bool persist = true}) {
+    final productsById = _latestProductsById();
+    if (productsById.isEmpty || _cartItems.isEmpty) return false;
+
+    var changed = false;
+    for (var index = 0; index < _cartItems.length; index += 1) {
+      final item = _cartItems[index];
+      final product = productsById[item.productId];
+      final nextItem = product == null
+          ? _markCartItemUnavailable(item)
+          : _hydrateCartItemFromProduct(item, product);
+
+      if (_cartItemChanged(item, nextItem)) {
+        _cartItems[index] = nextItem;
+        changed = true;
+      }
+    }
+
+    if (changed && persist) {
+      _persistCartForActiveUser();
+    }
+    return changed;
+  }
+
+  Map<String, Map<String, dynamic>> _latestProductsById() {
+    final data = _initData;
+    if (data == null) return const {};
+
+    final productsById = <String, Map<String, dynamic>>{};
+    void collect(dynamic value) {
+      if (value is List) {
+        for (final item in value) {
+          collect(item);
+        }
+        return;
+      }
+
+      if (value is Map) {
+        final map = Map<String, dynamic>.from(value);
+        final productId = _readProductText(map, ['product_id', 'productId']);
+        if (productId.isNotEmpty) {
+          productsById[productId] = map;
+          return;
+        }
+
+        for (final child in map.values) {
+          collect(child);
+        }
+      }
+    }
+
+    collect(data);
+    return productsById;
+  }
+
+  OrderItem _markCartItemUnavailable(OrderItem item) {
+    return item.copyWith(
+      isAvailable: false,
+      availabilityMessage: 'This item is no longer available.',
+      priceChanged: false,
+    );
+  }
+
+  OrderItem _hydrateCartItemFromProduct(
+    OrderItem item,
+    Map<String, dynamic> product,
+  ) {
+    final isActive = _isProductAvailable(product);
+    if (!isActive) {
+      return item.copyWith(
+        isAvailable: false,
+        availabilityMessage: 'This item is currently unavailable.',
+        priceChanged: false,
+      );
+    }
+
+    final nextName = _readProductText(product, [
+      'product_name',
+      'productName',
+      'name',
+    ]);
+    final nextDescription = _readProductText(product, ['description']);
+    final nextImagePath = _resolveProductImagePath(
+      _readProductText(product, ['image_url', 'imageUrl', 'image_path']),
+    );
+    final basePrice = _readProductPrice(product);
+    final optionPriceResult = _readSelectedOptionPriceDelta(
+      product,
+      item.selectedOptions,
+    );
+
+    if (optionPriceResult.hasMissingSelection) {
+      return item.copyWith(
+        isAvailable: false,
+        availabilityMessage:
+            'One or more selected options are no longer available.',
+        priceChanged: false,
+      );
+    }
+
+    final nextPrice = basePrice == null
+        ? null
+        : basePrice + optionPriceResult.total;
+    final hasPrice = nextPrice != null;
+    final priceChanged = hasPrice && (item.price - nextPrice).abs() >= 0.01;
+
+    return item.copyWith(
+      name: nextName.isNotEmpty ? nextName : item.name,
+      price: hasPrice ? nextPrice : item.price,
+      imagePath: nextImagePath.isNotEmpty ? nextImagePath : item.imagePath,
+      description: nextDescription.isNotEmpty
+          ? nextDescription
+          : item.description,
+      isAvailable: true,
+      availabilityMessage: priceChanged
+          ? 'Price updated from CAD \$${item.price.toStringAsFixed(2)} to CAD \$${nextPrice.toStringAsFixed(2)}.'
+          : '',
+      priceChanged: priceChanged,
+    );
+  }
+
+  bool _cartItemChanged(OrderItem current, OrderItem next) {
+    return current.name != next.name ||
+        current.price != next.price ||
+        current.imagePath != next.imagePath ||
+        current.description != next.description ||
+        current.isAvailable != next.isAvailable ||
+        current.availabilityMessage != next.availabilityMessage ||
+        current.priceChanged != next.priceChanged;
+  }
+
+  bool _isProductAvailable(Map<String, dynamic> product) {
+    final status = _readProductText(product, [
+      'status',
+      'product_status',
+    ]).toLowerCase();
+    if (status.isEmpty) return true;
+    return status == 'active' || status == 'available' || status == 'enabled';
+  }
+
+  String _readProductText(Map<String, dynamic> product, List<String> keys) {
+    for (final key in keys) {
+      final value = product[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  double? _readProductPrice(Map<String, dynamic> product) {
+    for (final key in const [
+      'base_price',
+      'basePrice',
+      'extra_price',
+      'extraPrice',
+      'price',
+      'unit_price',
+    ]) {
+      final value = product[key];
+      if (value == null) continue;
+      if (value is num) return value.toDouble();
+      final parsed = double.tryParse(value.toString());
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  _SelectedOptionPriceResult _readSelectedOptionPriceDelta(
+    Map<String, dynamic> product,
+    Map<String, List<String>> selectedOptions,
+  ) {
+    final normalizedOptions = _selectedOptionsForRequest(selectedOptions);
+    if (normalizedOptions.isEmpty) {
+      return const _SelectedOptionPriceResult(total: 0);
+    }
+
+    final seenGroupIds = <String>{};
+    final result = _readOptionGroupsPrice(
+      product['option_groups'] ?? product['optionGroups'],
+      normalizedOptions,
+      seenGroupIds,
+    );
+    final hasMissingGroup = normalizedOptions.keys.any(
+      (groupId) => !seenGroupIds.contains(groupId),
+    );
+
+    return _SelectedOptionPriceResult(
+      total: result.total,
+      hasMissingSelection: result.hasMissingSelection || hasMissingGroup,
+    );
+  }
+
+  _SelectedOptionPriceResult _readOptionGroupsPrice(
+    dynamic rawGroups,
+    Map<String, List<String>> selectedOptions,
+    Set<String> seenGroupIds,
+  ) {
+    if (rawGroups is! List) {
+      return const _SelectedOptionPriceResult(total: 0);
+    }
+
+    var total = 0.0;
+    var hasMissingSelection = false;
+
+    for (final rawGroup in rawGroups) {
+      if (rawGroup is! Map) continue;
+      final group = Map<String, dynamic>.from(rawGroup);
+      final groupId = _readProductText(group, [
+        'id',
+        'option_group_id',
+        'group_id',
+      ]);
+      final selectedIds = selectedOptions[groupId] ?? const <String>[];
+
+      if (groupId.isNotEmpty && selectedOptions.containsKey(groupId)) {
+        seenGroupIds.add(groupId);
+      }
+      if (selectedIds.isEmpty) continue;
+
+      final rawOptions = group['options'];
+      if (rawOptions is! List) {
+        hasMissingSelection = true;
+        continue;
+      }
+
+      final optionsById = <String, Map<String, dynamic>>{};
+      for (final rawOption in rawOptions) {
+        if (rawOption is! Map) continue;
+        final option = Map<String, dynamic>.from(rawOption);
+        final optionId = _readProductText(option, [
+          'id',
+          'option_product_id',
+          'product_id',
+        ]);
+        if (optionId.isNotEmpty) {
+          optionsById[optionId] = option;
+        }
+      }
+
+      for (final selectedId in selectedIds) {
+        final option = optionsById[selectedId];
+        if (option == null) {
+          hasMissingSelection = true;
+          continue;
+        }
+
+        total += _readProductPrice(option) ?? 0;
+        final childResult = _readOptionGroupsPrice(
+          option['child_groups'] ?? option['childGroups'],
+          selectedOptions,
+          seenGroupIds,
+        );
+        total += childResult.total;
+        hasMissingSelection =
+            hasMissingSelection || childResult.hasMissingSelection;
+      }
+    }
+
+    return _SelectedOptionPriceResult(
+      total: total,
+      hasMissingSelection: hasMissingSelection,
+    );
+  }
+
+  String _resolveProductImagePath(String imagePath) {
+    if (imagePath.isEmpty ||
+        imagePath.startsWith('http://') ||
+        imagePath.startsWith('https://') ||
+        imagePath.startsWith('assets/')) {
+      return imagePath;
+    }
+    return '${fetchImageRoot()}$imagePath';
+  }
+
+  Map<String, List<String>> _selectedOptionsForRequest(
+    Map<String, List<String>> selectedOptions,
+  ) {
+    final normalized = <String, List<String>>{};
+
+    for (final entry in selectedOptions.entries) {
+      final groupId = entry.key.trim();
+      if (groupId.isEmpty) continue;
+
+      final optionIds = <String>[];
+      for (final rawOptionId in entry.value) {
+        final optionId = rawOptionId.trim();
+        if (optionId.isEmpty || optionIds.contains(optionId)) continue;
+        optionIds.add(optionId);
+      }
+
+      if (optionIds.isNotEmpty) {
+        normalized[groupId] = optionIds;
+      }
+    }
+
+    return normalized;
+  }
 
   void addToCart(OrderItem item) {
     final index = _cartItems.indexWhere((i) => i.id == item.id);
@@ -46,6 +460,7 @@ class ServiceProvider with ChangeNotifier {
     } else {
       _cartItems.add(item);
     }
+    _persistCartForActiveUser();
     notifyListeners();
   }
 
@@ -54,6 +469,7 @@ class ServiceProvider with ChangeNotifier {
     if (quantity <= 0) {
       if (index != -1) {
         _cartItems.removeAt(index);
+        _persistCartForActiveUser();
         notifyListeners();
       }
       return;
@@ -65,6 +481,7 @@ class ServiceProvider with ChangeNotifier {
       item.quantity = quantity;
       _cartItems.add(item);
     }
+    _persistCartForActiveUser();
     notifyListeners();
   }
 
@@ -75,12 +492,14 @@ class ServiceProvider with ChangeNotifier {
       if (_cartItems[index].quantity <= 0) {
         _cartItems.removeAt(index);
       }
+      _persistCartForActiveUser();
       notifyListeners();
     }
   }
 
   void clearCart() {
     _cartItems.clear();
+    _persistCartForActiveUser();
     notifyListeners();
   }
 
@@ -91,6 +510,7 @@ class ServiceProvider with ChangeNotifier {
     String? deliveryNote,
     Map<String, dynamic>? shippingAddress,
     String? shippingAddressId,
+    String? paymentMethodId,
     double tipAmount = 0,
   }) async {
     if (_config == null) {
@@ -106,6 +526,19 @@ class ServiceProvider with ChangeNotifier {
     if (_cartItems.isEmpty) {
       _lastOrderError = 'Please add at least one item.';
       debugPrint('Cannot create order: cart is empty.');
+      return null;
+    }
+    OrderItem? unavailableItem;
+    for (final item in _cartItems) {
+      if (!item.isAvailable) {
+        unavailableItem = item;
+        break;
+      }
+    }
+    if (unavailableItem != null) {
+      _lastOrderError =
+          'Cart item "${unavailableItem.name}" is no longer available. Please remove it before ordering.';
+      debugPrint(_lastOrderError);
       return null;
     }
 
@@ -133,14 +566,24 @@ class ServiceProvider with ChangeNotifier {
       'currency': 'CAD',
       'fulfillment_type': normalizedFulfillmentType,
       'tip_amount': tipAmount,
-      'items': _cartItems
-          .map(
-            (item) => {'product_id': item.productId, 'quantity': item.quantity},
-          )
-          .toList(),
+      'items': _cartItems.map((item) {
+        final selectedOptions = _selectedOptionsForRequest(
+          item.selectedOptions,
+        );
+        final specialInstructions = item.specialInstructions.trim();
+        return {
+          'product_id': item.productId,
+          'quantity': item.quantity,
+          if (selectedOptions.isNotEmpty) 'selected_options': selectedOptions,
+          if (specialInstructions.isNotEmpty)
+            'special_instructions': specialInstructions,
+        };
+      }).toList(),
       if (shippingAddressId != null && shippingAddressId.isNotEmpty)
         'shipping_address_id': shippingAddressId,
       if (shippingAddress != null) 'shipping_address': shippingAddress,
+      if (paymentMethodId != null && paymentMethodId.isNotEmpty)
+        'payment_method_id': paymentMethodId,
       if (tableNumber != null && tableNumber.isNotEmpty)
         'table_number': tableNumber,
       if (pickupLocation != null && pickupLocation.isNotEmpty)
@@ -175,15 +618,77 @@ class ServiceProvider with ChangeNotifier {
           : e.message;
       debugPrint('Error creating order: ${e.message}');
       if (e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return null;
     } catch (e, stackTrace) {
       debugPrint('An unexpected error occurred while creating order: $e');
       debugPrint('Create order stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> createPayment({
+    required String orderId,
+    String provider = 'stripe',
+  }) async {
+    final normalizedOrderId = orderId.trim();
+    if (_config == null) {
+      _lastPaymentError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for createPayment.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastPaymentError = 'Please log in before paying for an order.';
+      debugPrint('Cannot create payment: user token is missing.');
+      return null;
+    }
+    if (normalizedOrderId.isEmpty) {
+      _lastPaymentError = 'Order id is missing.';
+      debugPrint('Cannot create payment: order id is missing.');
+      return null;
+    }
+
+    try {
+      _lastPaymentError = null;
+      debugPrint(
+        'Creating payment: ${_config!.getBaseUrl()}${_config!.getCreatePaymentPath()}',
+      );
+      final rawResponse = await _apiService.post(
+        _config!.getCreatePaymentPath(),
+        <String, dynamic>{'order_id': normalizedOrderId, 'provider': provider},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastPaymentError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated payment could not be created.';
+        debugPrint('Server indicated payment failure: $_lastPaymentError');
+        return null;
+      }
+
+      _lastPaymentError = 'Unexpected response while creating payment.';
+      return null;
+    } on AppException catch (e) {
+      _lastPaymentError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error creating payment: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastPaymentError = 'Failed to create payment.';
+      debugPrint('An unexpected error occurred while creating payment: $e');
+      debugPrint('Create payment stack trace: $stackTrace');
       return null;
     }
   }
@@ -231,9 +736,7 @@ class ServiceProvider with ChangeNotifier {
       _lastRecentOrdersError = _recentOrdersErrorMessage(e);
       debugPrint('Error fetching recent orders: ${e.message}');
       if (e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return [];
@@ -242,6 +745,69 @@ class ServiceProvider with ChangeNotifier {
       debugPrint('An unexpected error occurred while fetching orders: $e');
       debugPrint('Fetch recent orders stack trace: $stackTrace');
       return [];
+    }
+  }
+
+  Future<bool> cancelOrder(String orderId) async {
+    final normalizedOrderId = orderId.trim();
+    if (_config == null) {
+      _lastRecentOrdersError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for cancelOrder.');
+      return false;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastRecentOrdersError = 'Please log in to cancel an order.';
+      debugPrint('Cannot cancel order: user token is missing.');
+      return false;
+    }
+    if (normalizedOrderId.isEmpty) {
+      _lastRecentOrdersError = 'Order id is missing.';
+      debugPrint('Cannot cancel order: order id is missing.');
+      return false;
+    }
+
+    try {
+      _lastRecentOrdersError = null;
+      debugPrint(
+        'Cancelling order: ${_config!.getBaseUrl()}${_config!.getCancelOrderPath()}',
+      );
+      final rawResponse = await _apiService.post(
+        _config!.getCancelOrderPath(),
+        <String, dynamic>{'order_id': normalizedOrderId},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return true;
+
+        _lastRecentOrdersError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated the order could not be cancelled.';
+        debugPrint(
+          'Server indicated order cancellation failure: $_lastRecentOrdersError',
+        );
+        return false;
+      }
+
+      _lastRecentOrdersError = 'Unexpected response while cancelling order.';
+      return false;
+    } on AppException catch (e) {
+      _lastRecentOrdersError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error cancelling order: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return false;
+    } catch (e, stackTrace) {
+      _lastRecentOrdersError = 'Failed to cancel order.';
+      debugPrint('An unexpected error occurred while cancelling order: $e');
+      debugPrint('Cancel order stack trace: $stackTrace');
+      return false;
     }
   }
 
@@ -338,6 +904,7 @@ class ServiceProvider with ChangeNotifier {
   Future<void> _loadUserStatus() async {
     _userToken = await _secureStorage.read(key: 'user_token');
     _isLoggedIn = _userToken != null && _userToken!.isNotEmpty;
+    await _switchCartStorageForToken(_userToken);
     debugPrint(
       'User status loaded: isLoggedIn=$_isLoggedIn, token=${_userToken != null ? "exists" : "null"}',
     );
@@ -345,12 +912,20 @@ class ServiceProvider with ChangeNotifier {
   }
 
   Future<void> saveUserToken(String token) async {
+    await _switchCartStorageForToken(token);
     await _secureStorage.write(key: 'user_token', value: token);
     _userToken = token;
     _isLoggedIn = true;
     notifyListeners();
     debugPrint('User logged in. Token stored securely.');
     await fetchInitData();
+  }
+
+  Future<void> _clearUserSessionAndLoadGuestCart() async {
+    await _switchCartStorageForToken(null);
+    await _secureStorage.delete(key: 'user_token');
+    _userToken = null;
+    _isLoggedIn = false;
   }
 
   Future<bool> loginUser({
@@ -415,7 +990,7 @@ class ServiceProvider with ChangeNotifier {
       return false;
     }
     if (_userToken == null || _userToken!.isEmpty) {
-      _isLoggedIn = false;
+      await _clearUserSessionAndLoadGuestCart();
       notifyListeners();
       debugPrint('Token validation skipped: no token found.');
       return false;
@@ -433,8 +1008,7 @@ class ServiceProvider with ChangeNotifier {
       final bool isValid = responseData['success'] == true;
       _isLoggedIn = isValid;
       if (!isValid) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
+        await _clearUserSessionAndLoadGuestCart();
       }
       notifyListeners();
       debugPrint('Token validation result: $isValid');
@@ -442,9 +1016,7 @@ class ServiceProvider with ChangeNotifier {
     } on AppException catch (e) {
       debugPrint('Error validating token: ${e.message}');
       if (e.statusCode == 400 || e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return false;
@@ -455,9 +1027,7 @@ class ServiceProvider with ChangeNotifier {
   }
 
   Future<void> logoutUser() async {
-    await _secureStorage.delete(key: 'user_token');
-    _userToken = null;
-    _isLoggedIn = false;
+    await _clearUserSessionAndLoadGuestCart();
     notifyListeners();
     debugPrint('User logged out. Token removed from secure storage.');
     _initData = null;
@@ -491,6 +1061,7 @@ class ServiceProvider with ChangeNotifier {
         token: _userToken,
       );
       _initData = responseData;
+      _refreshCartItemsFromProductData();
       notifyListeners();
       //debugPrint('Initial data fetched: $_initData');
     } on AppException catch (e) {
@@ -668,9 +1239,7 @@ class ServiceProvider with ChangeNotifier {
     } on AppException catch (e) {
       debugPrint('Error fetching personal info: ${e.message}');
       if (e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return null;
@@ -725,9 +1294,7 @@ class ServiceProvider with ChangeNotifier {
     } on AppException catch (e) {
       debugPrint('Error updating personal info: ${e.message}');
       if (e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return null;
@@ -858,9 +1425,7 @@ class ServiceProvider with ChangeNotifier {
     } on AppException catch (e) {
       debugPrint('Error fetching payment methods: ${e.message}');
       if (e.statusCode == 401) {
-        await _secureStorage.delete(key: 'user_token');
-        _userToken = null;
-        _isLoggedIn = false;
+        await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
       return [];

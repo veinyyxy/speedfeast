@@ -26,6 +26,16 @@ class _HomePageState extends State<HomePage> {
   final List<Widget> _dynamicSliverWidgets = [];
   bool _isInitDataLoaded = false; // 用于确保 didChangeDependencies 中的逻辑只运行一次
 
+  static const String _restaurantName = 'SpeedFeast Restaurant';
+  static const String _restaurantAddress =
+      '630 Guelph Street, Winnipeg, MB, Canada';
+  static const String _restaurantPostalCode = 'R3M 3B2';
+  static const String _restaurantPhone = '+1 (204) 555-0138';
+  static const bool _showSearchButton = false;
+  static const double _cartFabWidth = 96;
+  static const double _cartFabHeight = 56;
+  static const double _cartFabMargin = 16;
+
   @override
   void initState() {
     super.initState();
@@ -57,22 +67,17 @@ class _HomePageState extends State<HomePage> {
             List<Product2ItemData> items = [];
             for (var itemDataDynamic in productListDynamic) {
               if (itemDataDynamic is Map<String, dynamic>) {
-                final productId = itemDataDynamic['product_id']?.toString() ?? '';
+                final productId =
+                    itemDataDynamic['product_id']?.toString() ?? '';
                 if (productId.isEmpty || productId.toLowerCase() == 'null') {
                   continue;
                 }
-                // 根据你的JSON结构，提取对应的数据
-                items.add(Product2ItemData(
-                  id: productId,
-                  name: itemDataDynamic['product_name']?.toString() ??
-                      'Unnamed product',
-                  price: itemDataDynamic['base_price']?.toString() ?? '0',
-                  description: itemDataDynamic['description']?.toString() ?? '',
-                  imageUrl: itemDataDynamic['image_url'] != null
-                      ? serviceProvider.fetchImageRoot() +
-                          itemDataDynamic['image_url'].toString()
-                      : null,
-                ));
+                items.add(
+                  Product2ItemData.fromJson(
+                    itemDataDynamic,
+                    imageRoot: serviceProvider.fetchImageRoot(),
+                  ),
+                );
               }
             }
             // 添加 ProductCategoryList 到动态列表
@@ -94,15 +99,57 @@ class _HomePageState extends State<HomePage> {
 
     // 初始化按钮位置（如果尚未设置）
     if (_fabPosition == null) {
-      final size = MediaQuery.of(context).size;
-      // 默认位置：右下角，避开底部导航栏
-      _fabPosition = Offset(size.width - 100, size.height - 220);
+      final mediaQuery = MediaQuery.of(context);
+      _fabPosition = _defaultFabPosition(mediaQuery.size, mediaQuery.padding);
     }
+  }
+
+  Offset _defaultFabPosition(Size size, EdgeInsets padding) {
+    return _clampFabPosition(
+      Offset(
+        size.width - _cartFabWidth - _cartFabMargin,
+        size.height -
+            padding.bottom -
+            kBottomNavigationBarHeight -
+            _cartFabHeight -
+            _cartFabMargin,
+      ),
+      size,
+      padding,
+    );
+  }
+
+  Offset _clampFabPosition(Offset position, Size size, EdgeInsets padding) {
+    final maxX = size.width - _cartFabWidth - _cartFabMargin;
+    final maxY =
+        size.height -
+        padding.bottom -
+        kBottomNavigationBarHeight -
+        _cartFabHeight -
+        _cartFabMargin;
+    final minY = padding.top + _cartFabMargin;
+
+    return Offset(
+      position.dx.clamp(_cartFabMargin, maxX),
+      position.dy.clamp(minY, maxY),
+    );
+  }
+
+  Offset _effectiveFabPosition(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return _clampFabPosition(
+      _fabPosition ?? _defaultFabPosition(mediaQuery.size, mediaQuery.padding),
+      mediaQuery.size,
+      mediaQuery.padding,
+    );
   }
 
   void _checkRegistrationStatus(BuildContext context) async {
     // 使用 Provider 获取 ServiceProvider 实例
-    final serviceProvider = Provider.of<ServiceProvider>(context, listen: false);
+    final serviceProvider = Provider.of<ServiceProvider>(
+      context,
+      listen: false,
+    );
 
     final bool isLoggedIn = serviceProvider.isLoggedIn; // 替换为您的实际检查逻辑
 
@@ -114,7 +161,9 @@ class _HomePageState extends State<HomePage> {
         builder: (BuildContext dialogContext) {
           return AlertDialog(
             title: const Text('Welcome to SpeedFeast!'),
-            content: const Text('Register now to unlock exclusive features, save your orders, and enjoy a personalized experience.'),
+            content: const Text(
+              'Register now to unlock exclusive features, save your orders, and enjoy a personalized experience.',
+            ),
             actions: <Widget>[
               TextButton(
                 child: const Text('Continue as Guest'),
@@ -127,9 +176,12 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {
                   Navigator.of(dialogContext).pop(); // 关闭对话框
                   // 导航到注册页面
-                  Navigator.of(context).pushNamed('register/mobile_number_page');
+                  Navigator.of(
+                    context,
+                  ).pushNamed('register/mobile_number_page');
                 },
-              ),ElevatedButton(
+              ),
+              ElevatedButton(
                 child: const Text('Login Now'),
                 onPressed: () {
                   Navigator.of(dialogContext).pop(); // 关闭对话框
@@ -153,6 +205,146 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _showAboutUsDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text(
+            'About Us',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _restaurantName,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 14),
+              _AboutInfoRow(
+                icon: Icons.location_on_outlined,
+                label: 'Address',
+                value: _restaurantAddress,
+              ),
+              SizedBox(height: 12),
+              _AboutInfoRow(
+                icon: Icons.local_post_office_outlined,
+                label: 'Postal Code',
+                value: _restaurantPostalCode,
+              ),
+              SizedBox(height: 12),
+              _AboutInfoRow(
+                icon: Icons.phone_outlined,
+                label: 'Phone',
+                value: _restaurantPhone,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleAccountStatusTap(bool isLoggedIn) async {
+    if (!isLoggedIn) {
+      final loggedIn = await showLoginDialog(context);
+      if (!mounted) return;
+      if (loggedIn == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Signed in successfully.')),
+        );
+      }
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.verified_user_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: const Text('Signed in'),
+                subtitle: const Text('Your account is active on this device.'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Personal Info'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.pushNamed(context, '/more_page/personal_info');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.more_horiz),
+                title: const Text('More Menu'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.pushNamed(context, '/more_page');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Sign out'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _confirmSignOut();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'You will need to sign in again to use your account features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await context.read<ServiceProvider>().logoutUser();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Signed out.')));
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
@@ -160,25 +352,32 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
+  Future<void> _onItemTapped(int index) async {
     switch (index) {
       case 0:
-        Navigator.pushNamed(context, '/');
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
         break;
       case 1:
-        Navigator.pushNamed(context, '/order_page');
+        setState(() => _selectedIndex = 1);
+        await Navigator.pushNamed(context, '/order_page/recent_orders');
+        if (mounted) {
+          setState(() => _selectedIndex = 0);
+        }
         break;
       case 2:
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('您点击了：扫码'))
-        );
+        setState(() => _selectedIndex = 0);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('您点击了：扫码')));
         break;
       case 3:
-        Navigator.pushNamed(context, '/more_page');
+        setState(() => _selectedIndex = 3);
+        await Navigator.pushNamed(context, '/more_page');
+        if (mounted) {
+          setState(() => _selectedIndex = 0);
+        }
         break;
     }
   }
@@ -190,10 +389,60 @@ class _HomePageState extends State<HomePage> {
     return const SizedBox.shrink(); // 防止越界
   }
 
+  Widget _buildAccountStatusChip({
+    required bool isLoggedIn,
+    required bool useDarkText,
+  }) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final backgroundColor = isLoggedIn
+        ? primaryColor.withValues(alpha: useDarkText ? 0.12 : 0.9)
+        : Colors.black.withValues(alpha: useDarkText ? 0.08 : 0.25);
+    final foregroundColor = isLoggedIn
+        ? (useDarkText ? primaryColor : Colors.white)
+        : (useDarkText ? Colors.black87 : Colors.white);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => _handleAccountStatusTap(isLoggedIn),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isLoggedIn ? Icons.verified_user : Icons.person_outline,
+                  size: 17,
+                  color: foregroundColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isLoggedIn ? 'Signed in' : 'Guest',
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final isLoggedIn = context.watch<ServiceProvider>().isLoggedIn;
     final cartCount = context.watch<ServiceProvider>().cartCount;
+    final useDarkAppBarText = _appBarColor.computeLuminance() > 0.5;
+    final cartFabPosition = _effectiveFabPosition(context);
 
     return Scaffold(
       body: Stack(
@@ -216,42 +465,48 @@ class _HomePageState extends State<HomePage> {
                 forceElevated: true,
                 leading: Image.asset('assets/images/log.png'),
                 title: const Text(
-                    'SpeedFeast',
-                    style: TextStyle(color: Colors.black,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
-                actions: <Widget>[
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.search, color: Colors.white),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('搜索功能待实现'))
-                        );
-                      },
-                      tooltip: 'Search',
-                    ),
+                  'SpeedFeast',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+                actions: <Widget>[
+                  _buildAccountStatusChip(
+                    isLoggedIn: isLoggedIn,
+                    useDarkText: useDarkAppBarText,
+                  ),
+                  const SizedBox(width: 6),
+                  if (_showSearchButton)
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.search, color: Colors.white),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('搜索功能待实现')),
+                          );
+                        },
+                        tooltip: 'Search',
+                      ),
+                    ),
                   Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0).copyWith(
-                        right: 8.0),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 8.0,
+                    ).copyWith(right: 8.0),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('更多选项待实现'))
-                        );
-                      },
-                      tooltip: 'More options',
+                      icon: const Icon(Icons.info_outline, color: Colors.white),
+                      onPressed: _showAboutUsDialog,
+                      tooltip: 'About us',
                     ),
                   ),
                 ],
@@ -259,19 +514,13 @@ class _HomePageState extends State<HomePage> {
                   background: Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
-                      Image.asset(
-                        'assets/images/sushi.jpg',
-                        fit: BoxFit.cover,
-                      ),
+                      Image.asset('assets/images/sushi.jpg', fit: BoxFit.cover),
                       const DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black45,
-                            ],
+                            colors: [Colors.transparent, Colors.black45],
                             stops: [0.5, 1.0],
                           ),
                         ),
@@ -323,50 +572,24 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (BuildContext context, int index) {
-                    return _buildSliverListItem(context, index);
-                  },
-                  childCount: _dynamicSliverWidgets.length,
-                ),
+                delegate: SliverChildBuilderDelegate((
+                  BuildContext context,
+                  int index,
+                ) {
+                  return _buildSliverListItem(context, index);
+                }, childCount: _dynamicSliverWidgets.length),
               ),
             ],
           ),
-          if (cartCount > 0 && _fabPosition != null)
-            Positioned(
-              left: _fabPosition!.dx,
-              top: _fabPosition!.dy,
-              child: Draggable(
-                feedback: Opacity(
-                  opacity: 0.8,
-                  child: FloatingActionButton.extended(
-                    onPressed: null,
-                    backgroundColor: Colors.deepOrange,
-                    icon: const Icon(Icons.shopping_cart, color: Colors.white),
-                    label: Text(
-                      '$cartCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                childWhenDragging: Container(),
-                onDragEnd: (details) {
-                  setState(() {
-                    // 这里直接使用 details.offset 可能会有小的偏差（取决于 AppBar 高度等），
-                    // 但在大部分全屏 Scaffold 中表现良好。
-                    _fabPosition = details.offset;
-                  });
-                },
+          Positioned(
+            left: cartFabPosition.dx,
+            top: cartFabPosition.dy,
+            child: Draggable(
+              feedback: Opacity(
+                opacity: 0.8,
                 child: FloatingActionButton.extended(
-                  heroTag: 'draggable_cart_fab',
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/order_page');
-                  },
-                  backgroundColor: Colors.deepOrange,
+                  onPressed: null,
+                  backgroundColor: primaryColor,
                   icon: const Icon(Icons.shopping_cart, color: Colors.white),
                   label: Text(
                     '$cartCount',
@@ -378,7 +601,35 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+              childWhenDragging: Container(),
+              onDragEnd: (details) {
+                final mediaQuery = MediaQuery.of(context);
+                setState(() {
+                  _fabPosition = _clampFabPosition(
+                    details.offset,
+                    mediaQuery.size,
+                    mediaQuery.padding,
+                  );
+                });
+              },
+              child: FloatingActionButton.extended(
+                heroTag: 'draggable_cart_fab',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/order_page');
+                },
+                backgroundColor: primaryColor,
+                icon: const Icon(Icons.shopping_cart, color: Colors.white),
+                label: Text(
+                  '$cartCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
             ),
+          ),
         ],
       ),
       bottomNavigationBar: Container(
@@ -395,20 +646,75 @@ class _HomePageState extends State<HomePage> {
         ),
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.deepOrange,
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: Theme.of(
+            context,
+          ).bottomNavigationBarTheme.selectedItemColor,
+          unselectedItemColor: Theme.of(
+            context,
+          ).bottomNavigationBarTheme.unselectedItemColor,
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.shopping_bag), label: 'Order'),
+              icon: Icon(Icons.shopping_bag),
+              label: 'Order',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
-            BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+              icon: Icon(Icons.qr_code_scanner),
+              label: 'Scan',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.more_horiz),
+              label: 'More',
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AboutInfoRow extends StatelessWidget {
+  const _AboutInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: primaryColor, size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

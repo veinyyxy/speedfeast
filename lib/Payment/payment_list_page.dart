@@ -451,7 +451,9 @@ class _PaymentListPageState extends State<PaymentListPage> {
                         child: ElevatedButton(
                           onPressed: submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
@@ -595,7 +597,9 @@ class _PaymentListPageState extends State<PaymentListPage> {
                         child: ElevatedButton(
                           onPressed: submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
@@ -670,6 +674,8 @@ class _PaymentListPageState extends State<PaymentListPage> {
 
   Widget _buildPaymentTile(Map<String, dynamic> method) {
     final id = method['payment_method_id']?.toString() ?? '';
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Dismissible(
       key: ValueKey(id),
       direction: DismissDirection.endToStart,
@@ -690,12 +696,12 @@ class _PaymentListPageState extends State<PaymentListPage> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: _selectedPaymentId == id
-                ? Colors.deepOrange
+                ? primaryColor
                 : Colors.grey.shade300,
           ),
         ),
         child: ListTile(
-          leading: Icon(_paymentIcon(method), color: Colors.deepOrange),
+          leading: Icon(_paymentIcon(method), color: primaryColor),
           title: Text(
             _paymentTitle(method),
             style: const TextStyle(fontWeight: FontWeight.w700),
@@ -777,7 +783,7 @@ class _PaymentListPageState extends State<PaymentListPage> {
             icon: const Icon(Icons.add),
             label: const Text('Add Payment Method'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),

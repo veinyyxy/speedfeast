@@ -55,6 +55,14 @@ class ServiceConfig {
     return '$name:$port${getCreateOrderPath()}';
   }
 
+  String getCreatePaymentUrl() {
+    return '$name:$port${getCreatePaymentPath()}';
+  }
+
+  String getCancelOrderUrl() {
+    return '$name:$port${getCancelOrderPath()}';
+  }
+
   String getRecentOrdersUrl() {
     return '$name:$port${getRecentOrdersPath()}';
   }
@@ -81,6 +89,11 @@ class ServiceConfig {
   String getLoginPath() => _path('login', '/api/users/login');
   String getValidatePath() => _path('validate', '/api/user/validate');
   String getCreateOrderPath() => _path('createOrder', '/api/orders/create');
+  String getCreatePaymentPath() =>
+      _path('createPayment', '/api/payments/create');
+  String getPaymentStatusPath() =>
+      _path('getPaymentStatus', '/api/payments/status');
+  String getCancelOrderPath() => _path('cancelOrder', '/api/orders/cancel');
   String getRecentOrdersPath() =>
       _path('listRecentOrders', '/api/orders/get_list');
   String getPersonalInfoPath() =>
