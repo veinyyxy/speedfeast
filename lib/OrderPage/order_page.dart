@@ -154,6 +154,10 @@ class _OrderPageState extends State<OrderPage> {
     _customTipController.addListener(_updateCustomTip);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        final serviceProvider = context.read<ServiceProvider>();
+        if (serviceProvider.hasDineInTableContext) {
+          setState(() => _deliveryMode = DeliveryMode.dineIn);
+        }
         _loadDeliveryAddresses();
       }
     });
@@ -649,8 +653,10 @@ class _OrderPageState extends State<OrderPage> {
     );
     if (deliveryScheduleError != null) return deliveryScheduleError;
     if (_deliveryMode == DeliveryMode.dineIn) {
-      const tableNumber = '12';
-      if (tableNumber.isEmpty) return 'Please provide a table number.';
+      final tableNumber = context.read<ServiceProvider>().dineInTableNumber;
+      if (tableNumber.isEmpty) {
+        return 'Please scan your table QR code before making a dine-in order.';
+      }
     }
     return null;
   }
@@ -688,7 +694,15 @@ class _OrderPageState extends State<OrderPage> {
     try {
       final response = await serviceProvider.createOrder(
         fulfillmentType: _fulfillmentTypeForRequest,
-        tableNumber: _deliveryMode == DeliveryMode.dineIn ? '12' : null,
+        tableNumber: _deliveryMode == DeliveryMode.dineIn
+            ? serviceProvider.dineInTableNumber
+            : null,
+        dineInTableId: _deliveryMode == DeliveryMode.dineIn
+            ? serviceProvider.dineInTableId
+            : null,
+        tableToken: _deliveryMode == DeliveryMode.dineIn
+            ? serviceProvider.dineInTableToken
+            : null,
         pickupLocation: _deliveryMode == DeliveryMode.takeout
             ? '630 Guelph Street, Winnipeg, MB, Canada, R3M 3B2'
             : null,
@@ -1435,6 +1449,10 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   Widget _buildDineInDetails() {
+    final serviceProvider = context.watch<ServiceProvider>();
+    final tableNumber = serviceProvider.dineInTableNumber;
+    final hasTable = tableNumber.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1456,13 +1474,42 @@ class _OrderPageState extends State<OrderPage> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             Text(
-              '12',
+              hasTable ? tableNumber : 'Not selected',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
+                color: hasTable
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey.shade600,
                 fontSize: 16,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final scanned = await Navigator.pushNamed(
+                    context,
+                    '/dine_in_scan',
+                  );
+                  if (mounted && scanned == true) {
+                    setState(() => _deliveryMode = DeliveryMode.dineIn);
+                  }
+                },
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(hasTable ? 'Change Table' : 'Scan Table'),
+              ),
+            ),
+            if (hasTable) ...[
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: serviceProvider.clearDineInTableContext,
+                child: const Text('Clear'),
+              ),
+            ],
           ],
         ),
       ],

@@ -6,6 +6,7 @@ import '../Controller/service_provider.dart';
 import 'home_page_exclusive2.dart';
 import 'OrderPage/order_page.dart';
 import 'OrderPage/recent_order_page.dart';
+import 'OrderPage/dine_in_scan_page.dart';
 import 'MoreMenu/more_main_menu.dart';
 import 'MoreMenu/more_my_account_personal_info.dart';
 import 'Payment/add_payment_method.dart';
@@ -111,6 +112,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => HomePage(),
         '/order_page': (context) => OrderPage(),
         '/order_page/recent_orders': (context) => RecentOrdersPage(),
+        '/dine_in_scan': (context) => DineInScanPage(),
         '/more_page': (context) => MoreMainMenu(),
         '/more_page/personal_info': (context) => PersonalInfoPage(),
         '/more_page/payment_options': (context) => AddPaymentMethodPage(),

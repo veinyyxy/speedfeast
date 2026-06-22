@@ -12,6 +12,8 @@ class ProductCard2 extends StatelessWidget {
   final VoidCallback onTap;
   final bool isAvailable;
   final String unavailableLabel;
+  final double ratingAverage;
+  final int ratingCount;
 
   const ProductCard2({
     super.key,
@@ -25,6 +27,8 @@ class ProductCard2 extends StatelessWidget {
     required this.onTap,
     this.isAvailable = true,
     this.unavailableLabel = 'Unavailable',
+    this.ratingAverage = 0,
+    this.ratingCount = 0,
   });
 
   @override
@@ -72,6 +76,29 @@ class ProductCard2 extends StatelessWidget {
                           price,
                           style: TextStyle(fontSize: 16, color: secondaryColor),
                         ),
+                        if (ratingCount > 0) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.star_rounded,
+                                size: 17,
+                                color: isAvailable
+                                    ? Colors.amber.shade700
+                                    : Colors.grey.shade400,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${ratingAverage.toStringAsFixed(1)} ($ratingCount)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: secondaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Flexible(
                           child: Text(

@@ -55,6 +55,10 @@ class ServiceConfig {
     return '$name:$port${getCreateOrderPath()}';
   }
 
+  String getVerifyDineInTableUrl() {
+    return '$name:$port${getVerifyDineInTablePath()}';
+  }
+
   String getCreatePaymentUrl() {
     return '$name:$port${getCreatePaymentPath()}';
   }
@@ -65,6 +69,10 @@ class ServiceConfig {
 
   String getRecentOrdersUrl() {
     return '$name:$port${getRecentOrdersPath()}';
+  }
+
+  String getOrderReviewUrl(String orderId) {
+    return '$name:$port${getOrderReviewPath(orderId)}';
   }
 
   String getPersonalInfoUrl() {
@@ -89,6 +97,8 @@ class ServiceConfig {
   String getLoginPath() => _path('login', '/api/users/login');
   String getValidatePath() => _path('validate', '/api/user/validate');
   String getCreateOrderPath() => _path('createOrder', '/api/orders/create');
+  String getVerifyDineInTablePath() =>
+      _path('verifyDineInTable', '/api/dine-in/table/verify');
   String getCreatePaymentPath() =>
       _path('createPayment', '/api/payments/create');
   String getPaymentStatusPath() =>
@@ -96,6 +106,10 @@ class ServiceConfig {
   String getCancelOrderPath() => _path('cancelOrder', '/api/orders/cancel');
   String getRecentOrdersPath() =>
       _path('listRecentOrders', '/api/orders/get_list');
+  String getOrderReviewBasePath() =>
+      _path('orderReview', '/api/reviews/orders');
+  String getOrderReviewPath(String orderId) =>
+      '${getOrderReviewBasePath()}/${Uri.encodeComponent(orderId)}';
   String getPersonalInfoPath() =>
       _path('getPersonalInfo', '/api/users/profile/get');
   String updatePersonalInfoPath() =>

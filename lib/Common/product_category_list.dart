@@ -42,6 +42,8 @@ class ProductCategoryList extends StatelessWidget {
           storeName: storeName,
           imageProvider: item.resolveImageProvider(),
           basePrice: item.basePrice,
+          ratingAverage: item.ratingAverage,
+          ratingCount: item.ratingCount,
           initialQuantity: cartQuantity > 0 ? cartQuantity : 1,
           optionGroups: item.optionGroups,
           onAddToOrder: (orderData) {
@@ -134,6 +136,8 @@ class ProductCategoryList extends StatelessWidget {
               initialCount: cartQuantity,
               isAvailable: item.isAvailable,
               unavailableLabel: item.unavailableLabel,
+              ratingAverage: item.ratingAverage,
+              ratingCount: item.ratingCount,
               onQuantityChanged: (count) {
                 if (!item.isAvailable) {
                   return;
@@ -167,6 +171,8 @@ class Product2ItemData {
   final String description;
   final String? imageUrl;
   final String status;
+  final double ratingAverage;
+  final int ratingCount;
   final List<ProductDetailOptionGroup> optionGroups;
 
   Product2ItemData({
@@ -176,6 +182,8 @@ class Product2ItemData {
     required this.description,
     this.imageUrl,
     this.status = 'active',
+    this.ratingAverage = 0,
+    this.ratingCount = 0,
     this.optionGroups = const [],
   });
 
@@ -208,6 +216,18 @@ class Product2ItemData {
                   'active')
               .trim()
               .toLowerCase(),
+      ratingAverage: _firstDouble(json, const [
+        'rating_average',
+        'ratingAverage',
+        'average_rating',
+        'averageRating',
+      ]),
+      ratingCount: _firstInt(json, const [
+        'rating_count',
+        'ratingCount',
+        'review_count',
+        'reviewCount',
+      ]),
       optionGroups: ProductDetailOptionGroup.listFromJson(
         json['option_groups'] ?? json['optionGroups'],
       ),
@@ -247,4 +267,28 @@ class Product2ItemData {
     }
     return const AssetImage('assets/images/hamberger2.jpg');
   }
+}
+
+dynamic _firstValue(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value == null) continue;
+    if (value is String && value.trim().isEmpty) continue;
+    return value;
+  }
+  return null;
+}
+
+double _firstDouble(Map<String, dynamic> json, List<String> keys) {
+  final value = _firstValue(json, keys);
+  if (value is num) return value.toDouble();
+  final text = value?.toString() ?? '';
+  final normalized = text.replaceAll(RegExp(r'[^0-9.\-]'), '');
+  return double.tryParse(normalized) ?? 0;
+}
+
+int _firstInt(Map<String, dynamic> json, List<String> keys) {
+  final value = _firstValue(json, keys);
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }

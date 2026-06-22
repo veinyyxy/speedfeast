@@ -32,6 +32,9 @@ class ServiceProvider with ChangeNotifier {
   String? _lastOrderError;
   String? _lastPaymentError;
   String? _lastRecentOrdersError;
+  String? _lastReviewError;
+  String? _lastDineInError;
+  Map<String, dynamic>? _dineInTableContext;
   late ApiService _apiService;
 
   bool get isLoggedIn => _isLoggedIn;
@@ -41,6 +44,18 @@ class ServiceProvider with ChangeNotifier {
   String? get lastOrderError => _lastOrderError;
   String? get lastPaymentError => _lastPaymentError;
   String? get lastRecentOrdersError => _lastRecentOrdersError;
+  String? get lastReviewError => _lastReviewError;
+  String? get lastDineInError => _lastDineInError;
+  Map<String, dynamic>? get dineInTableContext => _dineInTableContext == null
+      ? null
+      : Map<String, dynamic>.from(_dineInTableContext!);
+  bool get hasDineInTableContext => _dineInTableContext != null;
+  String get dineInTableNumber =>
+      _dineInTableContext?['table_number']?.toString() ?? '';
+  String get dineInTableId =>
+      _dineInTableContext?['table_id']?.toString() ?? '';
+  String get dineInTableToken =>
+      _dineInTableContext?['table_token']?.toString() ?? '';
 
   Map<String, String> features = {};
   bool _isInitialized = false;
@@ -503,9 +518,82 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void clearDineInTableContext() {
+    _dineInTableContext = null;
+    _lastDineInError = null;
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>?> verifyDineInTable(String qrCode) async {
+    final rawCode = qrCode.trim();
+    if (_config == null) {
+      _lastDineInError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for verifyDineInTable.');
+      return null;
+    }
+    if (rawCode.isEmpty) {
+      _lastDineInError = 'Please scan or enter a table code.';
+      return null;
+    }
+
+    try {
+      _lastDineInError = null;
+      final rawResponse = await _apiService.post(
+        _config!.getVerifyDineInTablePath(),
+        <String, dynamic>{'qr_code': rawCode},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) {
+          final tableValue = responseData['table'];
+          final table = tableValue is Map
+              ? _asStringKeyedMap(tableValue)
+              : <String, dynamic>{
+                  'table_id': responseData['table_id'],
+                  'store_id': responseData['store_id'],
+                  'table_number': responseData['table_number'],
+                  'table_token': responseData['table_token'],
+                };
+
+          final tableNumber = table['table_number']?.toString().trim() ?? '';
+          if (tableNumber.isEmpty) {
+            _lastDineInError = 'The table code response is missing a table.';
+            return null;
+          }
+
+          _dineInTableContext = table;
+          notifyListeners();
+          return table;
+        }
+
+        _lastDineInError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Table code could not be verified.';
+        return null;
+      }
+
+      _lastDineInError = 'Unexpected response while verifying table code.';
+      return null;
+    } on AppException catch (e) {
+      _lastDineInError = e.message;
+      debugPrint('Error verifying dine-in table: ${e.message}');
+      return null;
+    } catch (e, stackTrace) {
+      _lastDineInError = 'Failed to verify table code.';
+      debugPrint('An unexpected error occurred while verifying table: $e');
+      debugPrint('Verify dine-in table stack trace: $stackTrace');
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> createOrder({
     required String fulfillmentType,
     String? tableNumber,
+    String? dineInTableId,
+    String? tableToken,
     String? pickupLocation,
     String? deliveryNote,
     Map<String, dynamic>? shippingAddress,
@@ -586,6 +674,10 @@ class ServiceProvider with ChangeNotifier {
         'payment_method_id': paymentMethodId,
       if (tableNumber != null && tableNumber.isNotEmpty)
         'table_number': tableNumber,
+      if (dineInTableId != null && dineInTableId.isNotEmpty)
+        'dine_in_table_id': dineInTableId,
+      if (tableToken != null && tableToken.isNotEmpty)
+        'table_token': tableToken,
       if (pickupLocation != null && pickupLocation.isNotEmpty)
         'pickup_location': pickupLocation,
       if (deliveryNote != null && deliveryNote.isNotEmpty)
@@ -808,6 +900,127 @@ class ServiceProvider with ChangeNotifier {
       debugPrint('An unexpected error occurred while cancelling order: $e');
       debugPrint('Cancel order stack trace: $stackTrace');
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchOrderReview(String orderId) async {
+    final normalizedOrderId = orderId.trim();
+    if (_config == null) {
+      _lastReviewError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for fetchOrderReview.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastReviewError = 'Please log in to review an order.';
+      debugPrint('Cannot fetch order review: user token is missing.');
+      return null;
+    }
+    if (normalizedOrderId.isEmpty) {
+      _lastReviewError = 'Order id is missing.';
+      debugPrint('Cannot fetch order review: order id is missing.');
+      return null;
+    }
+
+    try {
+      _lastReviewError = null;
+      final rawResponse = await _apiService.get(
+        _config!.getOrderReviewPath(normalizedOrderId),
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastReviewError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated the review could not be loaded.';
+        return null;
+      }
+
+      _lastReviewError = 'Unexpected response while loading review.';
+      return null;
+    } on AppException catch (e) {
+      _lastReviewError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error fetching order review: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastReviewError = 'Failed to load review.';
+      debugPrint('An unexpected error occurred while fetching review: $e');
+      debugPrint('Fetch review stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> saveOrderReview({
+    required String orderId,
+    required String comment,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final normalizedOrderId = orderId.trim();
+    if (_config == null) {
+      _lastReviewError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for saveOrderReview.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastReviewError = 'Please log in to review an order.';
+      debugPrint('Cannot save order review: user token is missing.');
+      return null;
+    }
+    if (normalizedOrderId.isEmpty) {
+      _lastReviewError = 'Order id is missing.';
+      debugPrint('Cannot save order review: order id is missing.');
+      return null;
+    }
+    if (items.isEmpty) {
+      _lastReviewError = 'Please rate at least one item.';
+      return null;
+    }
+
+    try {
+      _lastReviewError = null;
+      final rawResponse = await _apiService.post(
+        _config!.getOrderReviewPath(normalizedOrderId),
+        <String, dynamic>{'comment': comment.trim(), 'items': items},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastReviewError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated the review could not be saved.';
+        return null;
+      }
+
+      _lastReviewError = 'Unexpected response while saving review.';
+      return null;
+    } on AppException catch (e) {
+      _lastReviewError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error saving order review: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastReviewError = 'Failed to save review.';
+      debugPrint('An unexpected error occurred while saving review: $e');
+      debugPrint('Save review stack trace: $stackTrace');
+      return null;
     }
   }
 

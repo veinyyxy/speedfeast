@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../Controller/service_provider.dart';
 import '../RegisterPage/phone_login_page.dart';
+import 'order_review_page.dart';
 
 class RecentOrdersPage extends StatefulWidget {
   const RecentOrdersPage({super.key});
@@ -103,6 +104,18 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
     }
   }
 
+  Future<void> _openReviewPage(RecentOrder order) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (context) => OrderReviewPage(order: order),
+      ),
+    );
+    if (!mounted) return;
+    if (changed == true) {
+      await _reloadOrders();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoggedIn = context.watch<ServiceProvider>().isLoggedIn;
@@ -187,6 +200,7 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
                 onCancel: order.canCancel
                     ? () => _confirmCancelOrder(order)
                     : null,
+                onReview: order.canReview ? () => _openReviewPage(order) : null,
               );
             },
           ),
@@ -211,11 +225,13 @@ class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.order,
     this.onCancel,
+    this.onReview,
     this.isCancelling = false,
   });
 
   final RecentOrder order;
   final VoidCallback? onCancel;
+  final VoidCallback? onReview;
   final bool isCancelling;
 
   @override
@@ -313,6 +329,19 @@ class _OrderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
+                if (onReview != null) ...[
+                  TextButton.icon(
+                    onPressed: onReview,
+                    icon: Icon(
+                      order.isReviewed
+                          ? Icons.rate_review_outlined
+                          : Icons.star_rate_outlined,
+                      size: 18,
+                    ),
+                    label: Text(order.isReviewed ? 'Edit Review' : 'Review'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 TextButton.icon(
                   onPressed: () => _showOrderDetails(context, order),
                   icon: const Icon(Icons.receipt_long_outlined, size: 18),
@@ -395,6 +424,13 @@ class _OrderDetailsSheet extends StatelessWidget {
             ),
             _DetailRow(label: 'Delivered', value: order.actualDelivery),
             _DetailRow(label: 'Address', value: order.shippingAddress),
+            if (order.isReviewed)
+              _DetailRow(
+                label: 'Review',
+                value: order.reviewComment.isEmpty
+                    ? 'Product ratings submitted'
+                    : order.reviewComment,
+              ),
             const SizedBox(height: 12),
             Divider(color: Colors.grey.shade200),
             const SizedBox(height: 12),
@@ -713,6 +749,9 @@ class RecentOrder {
     required this.estimatedDelivery,
     required this.actualDelivery,
     required this.items,
+    required this.canReview,
+    required this.isReviewed,
+    required this.reviewComment,
   });
 
   final String id;
@@ -727,6 +766,9 @@ class RecentOrder {
   final String estimatedDelivery;
   final String actualDelivery;
   final List<RecentOrderItem> items;
+  final bool canReview;
+  final bool isReviewed;
+  final String reviewComment;
 
   String get displayId => id.isEmpty ? 'Order' : 'Order #$id';
 
@@ -764,6 +806,21 @@ class RecentOrder {
             (key, value) => MapEntry(key.toString(), value),
           )
         : const <String, dynamic>{};
+    final rawStatus = _firstString(json, const [
+      'status',
+      'order_status',
+      'orderStatus',
+      'current_status',
+    ], fallback: 'Pending');
+    final reviewValue = _firstValue(json, const ['review', 'order_review']);
+    final reviewMap = reviewValue is Map
+        ? reviewValue.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final inferredCanReview =
+        rawStatus.toLowerCase() == 'completed' ||
+        rawStatus.toLowerCase() == 'delivered';
 
     return RecentOrder(
       id: _firstString(json, const [
@@ -773,14 +830,7 @@ class RecentOrder {
         'orderNumber',
         'id',
       ]),
-      status: _humanize(
-        _firstString(json, const [
-          'status',
-          'order_status',
-          'orderStatus',
-          'current_status',
-        ], fallback: 'Pending'),
-      ),
+      status: _humanize(rawStatus),
       dateLabel: dateLabel.isEmpty ? 'Date unavailable' : dateLabel,
       totalAmount: _firstDouble(json, const [
         'total_amount',
@@ -841,22 +891,43 @@ class RecentOrder {
         ]),
       ),
       items: items,
+      canReview: _firstBool(json, const [
+        'can_review',
+        'canReview',
+      ], fallback: inferredCanReview),
+      isReviewed: _firstBool(json, const [
+        'is_reviewed',
+        'isReviewed',
+        'reviewed',
+      ], fallback: reviewMap.isNotEmpty),
+      reviewComment: _firstString(reviewMap, const [
+        'comment',
+        'message',
+        'review_comment',
+        'reviewComment',
+      ]),
     );
   }
 }
 
 class RecentOrderItem {
   const RecentOrderItem({
+    required this.orderItemId,
+    required this.productId,
     required this.name,
     required this.quantity,
     required this.price,
+    this.reviewRating = 0,
     this.options = const [],
     this.specialInstructions = '',
   });
 
+  final String orderItemId;
+  final String productId;
   final String name;
   final int quantity;
   final double price;
+  final int reviewRating;
   final List<RecentOrderItemOption> options;
   final String specialInstructions;
 
@@ -883,6 +954,12 @@ class RecentOrderItem {
 
   factory RecentOrderItem.fromJson(Map<String, dynamic> json) {
     return RecentOrderItem(
+      orderItemId: _firstString(json, const [
+        'order_item_id',
+        'orderItemId',
+        'id',
+      ]),
+      productId: _firstString(json, const ['product_id', 'productId']),
       name: _firstString(json, const [
         'product_name',
         'productName',
@@ -900,6 +977,11 @@ class RecentOrderItem {
         'unitPrice',
         'total_price',
         'totalPrice',
+      ]),
+      reviewRating: _firstInt(json, const [
+        'review_rating',
+        'reviewRating',
+        'rating',
       ]),
       options: _readList(json, const [
         'selected_options',
@@ -978,6 +1060,20 @@ int _firstInt(
   final value = _firstValue(json, keys);
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+bool _firstBool(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  bool fallback = false,
+}) {
+  final value = _firstValue(json, keys);
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final text = value?.toString().trim().toLowerCase() ?? '';
+  if (text == 'true' || text == 'yes' || text == '1') return true;
+  if (text == 'false' || text == 'no' || text == '0') return false;
+  return fallback;
 }
 
 List<Map<String, dynamic>> _readList(

@@ -367,10 +367,22 @@ class _HomePageState extends State<HomePage> {
         }
         break;
       case 2:
-        setState(() => _selectedIndex = 0);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('您点击了：扫码')));
+        setState(() => _selectedIndex = 2);
+        final scanned = await Navigator.pushNamed(context, '/dine_in_scan');
+        if (mounted) {
+          setState(() => _selectedIndex = 0);
+          if (scanned == true) {
+            final tableNumber = context
+                .read<ServiceProvider>()
+                .dineInTableNumber;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Dine-in table $tableNumber is ready.'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
         break;
       case 3:
         setState(() => _selectedIndex = 3);

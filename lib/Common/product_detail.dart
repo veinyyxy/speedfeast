@@ -206,6 +206,8 @@ class ProductDetail extends StatefulWidget {
   final String storeName;
   final ImageProvider imageProvider;
   final double basePrice;
+  final double ratingAverage;
+  final int ratingCount;
   final int initialQuantity;
   final List<ProductRecommendation> recommendations;
   final List<ProductDetailOptionGroup> optionGroups;
@@ -223,6 +225,8 @@ class ProductDetail extends StatefulWidget {
     required this.imageProvider,
     required this.basePrice,
     required this.optionGroups,
+    this.ratingAverage = 0,
+    this.ratingCount = 0,
     this.initialQuantity = 1,
     this.recommendations = const [],
     this.onSelectionChanged,
@@ -656,6 +660,10 @@ class _ProductDetailState extends State<ProductDetail> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          if (widget.ratingCount > 0) ...[
+                            const SizedBox(height: 6),
+                            _buildRatingSummary(compact: true),
+                          ],
                         ],
                       ),
                     ),
@@ -717,6 +725,8 @@ class _ProductDetailState extends State<ProductDetail> {
               letterSpacing: 0,
             ),
           ),
+          const SizedBox(height: 12),
+          _buildRatingSummary(),
           const SizedBox(height: 18),
           Text(
             widget.description,
@@ -729,6 +739,47 @@ class _ProductDetailState extends State<ProductDetail> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRatingSummary({bool compact = false}) {
+    final hasRatings = widget.ratingCount > 0;
+    final ratingText = hasRatings
+        ? widget.ratingAverage.toStringAsFixed(1)
+        : 'No ratings yet';
+    final reviewText = hasRatings
+        ? '${widget.ratingCount} review${widget.ratingCount == 1 ? '' : 's'}'
+        : '';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          hasRatings ? Icons.star_rounded : Icons.star_border_rounded,
+          size: compact ? 16 : 20,
+          color: hasRatings ? Colors.amber.shade700 : Colors.grey.shade500,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          ratingText,
+          style: TextStyle(
+            fontSize: compact ? 12 : 15,
+            fontWeight: FontWeight.w800,
+            color: hasRatings ? Colors.grey.shade900 : Colors.grey.shade600,
+          ),
+        ),
+        if (reviewText.isNotEmpty) ...[
+          const SizedBox(width: 6),
+          Text(
+            reviewText,
+            style: TextStyle(
+              fontSize: compact ? 12 : 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
