@@ -33,6 +33,7 @@ class ServiceProvider with ChangeNotifier {
   String? _lastOrderError;
   String? _lastPaymentError;
   String? _lastRecentOrdersError;
+  String? _lastRewardsError;
   String? _lastReviewError;
   String? _lastDineInError;
   String? _lastLoginError;
@@ -46,6 +47,7 @@ class ServiceProvider with ChangeNotifier {
   String? get lastOrderError => _lastOrderError;
   String? get lastPaymentError => _lastPaymentError;
   String? get lastRecentOrdersError => _lastRecentOrdersError;
+  String? get lastRewardsError => _lastRewardsError;
   String? get lastReviewError => _lastReviewError;
   String? get lastDineInError => _lastDineInError;
   String? get lastLoginError => _lastLoginError;
@@ -840,6 +842,122 @@ class ServiceProvider with ChangeNotifier {
       debugPrint('An unexpected error occurred while fetching orders: $e');
       debugPrint('Fetch recent orders stack trace: $stackTrace');
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchRewardsSummary() async {
+    if (_config == null) {
+      _lastRewardsError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for fetchRewardsSummary.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastRewardsError = 'Please log in to view rewards.';
+      debugPrint('Cannot fetch rewards summary: user token is missing.');
+      return null;
+    }
+
+    try {
+      _lastRewardsError = null;
+      debugPrint(
+        'Fetching rewards summary: ${_config!.getBaseUrl()}${_config!.getRewardsSummaryPath()}',
+      );
+      final rawResponse = await _apiService.get(
+        _config!.getRewardsSummaryPath(),
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastRewardsError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated rewards could not be loaded.';
+        debugPrint('Server indicated rewards failure: $_lastRewardsError');
+        return null;
+      }
+
+      _lastRewardsError = 'Unexpected response while loading rewards.';
+      return null;
+    } on AppException catch (e) {
+      _lastRewardsError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error fetching rewards summary: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastRewardsError = 'Failed to load rewards.';
+      debugPrint('An unexpected error occurred while fetching rewards: $e');
+      debugPrint('Fetch rewards stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchRewardsTransactions({
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    if (_config == null) {
+      _lastRewardsError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for fetchRewardsTransactions.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastRewardsError = 'Please log in to view rewards.';
+      debugPrint('Cannot fetch rewards transactions: user token is missing.');
+      return null;
+    }
+
+    try {
+      _lastRewardsError = null;
+      debugPrint(
+        'Fetching rewards transactions: ${_config!.getBaseUrl()}${_config!.getRewardsTransactionsPath()}',
+      );
+      final rawResponse = await _apiService.get(
+        _config!.getRewardsTransactionsPath(),
+        queryParameters: <String, dynamic>{'limit': limit, 'offset': offset},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastRewardsError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated rewards activity could not be loaded.';
+        debugPrint(
+          'Server indicated rewards transactions failure: $_lastRewardsError',
+        );
+        return null;
+      }
+
+      _lastRewardsError = 'Unexpected response while loading rewards activity.';
+      return null;
+    } on AppException catch (e) {
+      _lastRewardsError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error fetching rewards transactions: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastRewardsError = 'Failed to load rewards activity.';
+      debugPrint(
+        'An unexpected error occurred while fetching rewards transactions: $e',
+      );
+      debugPrint('Fetch rewards transactions stack trace: $stackTrace');
+      return null;
     }
   }
 

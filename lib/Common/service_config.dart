@@ -71,6 +71,14 @@ class ServiceConfig {
     return '$name:$port${getRecentOrdersPath()}';
   }
 
+  String getRewardsSummaryUrl() {
+    return '$name:$port${getRewardsSummaryPath()}';
+  }
+
+  String getRewardsTransactionsUrl() {
+    return '$name:$port${getRewardsTransactionsPath()}';
+  }
+
   String getOrderReviewUrl(String orderId) {
     return '$name:$port${getOrderReviewPath(orderId)}';
   }
@@ -106,6 +114,10 @@ class ServiceConfig {
   String getCancelOrderPath() => _path('cancelOrder', '/api/orders/cancel');
   String getRecentOrdersPath() =>
       _path('listRecentOrders', '/api/orders/get_list');
+  String getRewardsSummaryPath() =>
+      _path('rewardsSummary', '/api/rewards/summary');
+  String getRewardsTransactionsPath() =>
+      _path('rewardsTransactions', '/api/rewards/transactions');
   String getOrderReviewBasePath() =>
       _path('orderReview', '/api/reviews/orders');
   String getOrderReviewPath(String orderId) =>

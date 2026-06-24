@@ -29,7 +29,9 @@
       "saveCardPaymentMethod" : "/api/payment-methods/card/save",
       "savePaypalPaymentMethod" : "/api/payment-methods/paypal/save",
       "deletePaymentMethod" : "/api/payment-methods/delete",
-      "setDefaultPaymentMethod" : "/api/payment-methods/default"
+      "setDefaultPaymentMethod" : "/api/payment-methods/default",
+      "rewardsSummary" : "/api/rewards/summary",
+      "rewardsTransactions" : "/api/rewards/transactions"
 
     }
   }

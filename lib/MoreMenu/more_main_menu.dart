@@ -70,7 +70,7 @@ class MoreScreen extends StatelessWidget {
       'title': 'Points Activity',
       'icon': Icons.star_border,
       'action': (BuildContext context) =>
-          debugPrint('Points Activity clicked!'),
+          Navigator.pushNamed(context, '/more_page/rewards_activity'),
     },
     {
       'title': 'About Rewards',

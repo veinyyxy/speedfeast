@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'horizontal_scroll_section.dart';
+import 'package:provider/provider.dart';
 
-// 这个文件包含了主要的 RewardWidget 和其内部私有的 _RewardsSection
+import '../Controller/service_provider.dart';
+import '../RegisterPage/phone_login_page.dart';
+import 'horizontal_scroll_section.dart';
 
 class RewardWidget extends StatefulWidget {
   const RewardWidget({super.key});
@@ -11,18 +12,79 @@ class RewardWidget extends StatefulWidget {
   State<RewardWidget> createState() => _RewardWidgetState();
 }
 
-// 文件: lib/Common/reward_widget.dart
-
-// ... (imports and RewardWidget class definition) ...
-
 class _RewardWidgetState extends State<RewardWidget> {
   bool _isExpanded = false;
+  bool? _lastLoggedIn;
+  Future<_RewardSummary?>? _summaryFuture;
+
+  Future<_RewardSummary?> _loadSummary(ServiceProvider serviceProvider) async {
+    final response = await serviceProvider.fetchRewardsSummary();
+    if (response == null) return null;
+
+    final rawSummary = response['summary'] ?? response['data'] ?? response;
+    if (rawSummary is Map) {
+      return _RewardSummary.fromJson(Map<String, dynamic>.from(rawSummary));
+    }
+    return null;
+  }
+
+  void _refresh(ServiceProvider serviceProvider) {
+    setState(() {
+      _summaryFuture = serviceProvider.isLoggedIn
+          ? _loadSummary(serviceProvider)
+          : Future.value(_RewardSummary.empty());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final serviceProvider = context.watch<ServiceProvider>();
+    final isLoggedIn = serviceProvider.isLoggedIn;
 
-    // 修改开始: 将原来的 Column 替换为一个统一的 Padding -> Card 结构
+    if (_lastLoggedIn != isLoggedIn || _summaryFuture == null) {
+      _lastLoggedIn = isLoggedIn;
+      _summaryFuture = isLoggedIn
+          ? _loadSummary(serviceProvider)
+          : Future.value(_RewardSummary.empty());
+    }
+
+    return FutureBuilder<_RewardSummary?>(
+      future: _summaryFuture,
+      builder: (context, snapshot) {
+        final isLoading =
+            snapshot.connectionState == ConnectionState.waiting && isLoggedIn;
+        final summary = snapshot.data ?? _RewardSummary.empty();
+        return _buildCard(
+          context,
+          serviceProvider: serviceProvider,
+          summary: summary,
+          isLoggedIn: isLoggedIn,
+          isLoading: isLoading,
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context, {
+    required ServiceProvider serviceProvider,
+    required _RewardSummary summary,
+    required bool isLoggedIn,
+    required bool isLoading,
+  }) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final targetPoints = summary.nextRewardPoints > 0
+        ? summary.nextRewardPoints
+        : 300;
+    final progress = targetPoints <= 0
+        ? 0.0
+        : (summary.availablePoints / targetPoints).clamp(0.0, 1.0);
+    final subtitle = isLoggedIn
+        ? summary.availablePoints >= targetPoints && summary.rewards.isNotEmpty
+              ? 'You have rewards ready to use'
+              : 'Unlock more items at $targetPoints pts'
+        : 'Sign in to earn points after completed orders';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Card(
@@ -34,7 +96,6 @@ class _RewardWidgetState extends State<RewardWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- 这是上半部分的内容 (保持不变) ---
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -44,20 +105,24 @@ class _RewardWidgetState extends State<RewardWidget> {
                         SizedBox(
                           width: 32,
                           height: 32,
-                          child: CircularProgressIndicator(
-                            value:
-                                1000 / 3000, // Current points / target points
-                            strokeWidth: 7,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              primaryColor,
-                            ),
-                          ),
+                          child: isLoading
+                              ? CircularProgressIndicator(
+                                  strokeWidth: 4,
+                                  color: primaryColor,
+                                )
+                              : CircularProgressIndicator(
+                                  value: progress,
+                                  strokeWidth: 7,
+                                  backgroundColor: Colors.grey[300],
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    primaryColor,
+                                  ),
+                                ),
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          '3000',
-                          style: TextStyle(
+                        Text(
+                          summary.availablePoints.toString(),
+                          style: const TextStyle(
                             fontSize: 30,
                             fontWeight: FontWeight.bold,
                             height: 1,
@@ -84,31 +149,48 @@ class _RewardWidgetState extends State<RewardWidget> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Unlock more items at 300',
+                subtitle,
                 style: TextStyle(color: Colors.grey[700], fontSize: 13),
               ),
-              const SizedBox(height: 8),
-
-              // --- 根据 _isExpanded 状态显示按钮或奖励详情 ---
-              if (!_isExpanded)
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _isExpanded = true; // 展开奖励详情
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 8,
-                    ),
-                    minimumSize: const Size(0, 36),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              if (serviceProvider.lastRewardsError != null && isLoggedIn) ...[
+                const SizedBox(height: 6),
+                Text(
+                  serviceProvider.lastRewardsError!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
                   ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              if (!isLoggedIn)
+                ElevatedButton(
+                  onPressed: () async {
+                    final rewardsProvider = serviceProvider;
+                    final signedIn = await showLoginDialog(
+                      context,
+                      reason: LoginPromptReason.account,
+                    );
+                    if (signedIn == true && mounted) {
+                      _refresh(rewardsProvider);
+                    }
+                  },
+                  style: _primaryButtonStyle(primaryColor),
+                  child: const Text(
+                    'Sign in for Rewards',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                )
+              else if (!_isExpanded)
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            _isExpanded = true;
+                          });
+                        },
+                  style: _primaryButtonStyle(primaryColor),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
@@ -125,13 +207,13 @@ class _RewardWidgetState extends State<RewardWidget> {
                     ],
                   ),
                 ),
-
-              if (_isExpanded)
-                // 现在 _RewardsSection 的内容会直接渲染在这个 Card 内部
+              if (isLoggedIn && _isExpanded)
                 _RewardsSection(
+                  rewards: summary.rewards,
+                  onRefresh: () => _refresh(serviceProvider),
                   onHide: () {
                     setState(() {
-                      _isExpanded = false; // 通过回调函数折叠奖励详情
+                      _isExpanded = false;
                     });
                   },
                 ),
@@ -140,231 +222,128 @@ class _RewardWidgetState extends State<RewardWidget> {
         ),
       ),
     );
-    // 修改结束
+  }
+
+  ButtonStyle _primaryButtonStyle(Color primaryColor) {
+    return ElevatedButton.styleFrom(
+      backgroundColor: primaryColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+      minimumSize: const Size(0, 36),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
   }
 }
 
-// -----------------------------------------------------------------------------
-// _RewardsSection: 从原始文件提取并重命名为私有类
-// -----------------------------------------------------------------------------
-// 它被标记为私有 (_RewardsSection)，因为它主要用于 RewardWidget 内部。
-
 class _RewardsSection extends StatefulWidget {
-  // 重命名为 _RewardsSection
-  final VoidCallback onHide; // 回调函数，用于通知父组件隐藏此部分
+  final List<_RewardItem> rewards;
+  final VoidCallback onRefresh;
+  final VoidCallback onHide;
 
-  const _RewardsSection({required this.onHide});
+  const _RewardsSection({
+    required this.rewards,
+    required this.onRefresh,
+    required this.onHide,
+  });
 
   @override
-  State<_RewardsSection> createState() => _RewardsSectionState(); // State class 也重命名
+  State<_RewardsSection> createState() => _RewardsSectionState();
 }
 
 class _RewardsSectionState extends State<_RewardsSection> {
-  // State class 也重命名
-  String _selectedPoints = '300'; // 默认选中 300 点
-  final List<String> _pointOptions = ['300', '600', '900', '1500']; // 可选的点数分类
-
-  // 为每个点数类别准备一些示例奖励数据
-  final Map<String, List<ProductItemData>> _rewardsData = {
-    '300': [
-      ProductItemData(
-        imagePath: 'assets/images/pears.jpg',
-        brandName: 'Fresh Farms',
-        productName: 'Juicy Pears',
-        price: '300 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/watermelon.jpg',
-        brandName: 'Green Valley',
-        productName: 'Sweet Watermelon',
-        price: '300 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/carrots.jpg',
-        brandName: 'Organic+',
-        productName: 'Crisp Carrots',
-        price: '300 pts',
-      ),
-    ],
-    '600': [
-      ProductItemData(
-        imagePath: 'assets/images/cat.jpg',
-        brandName: 'Pet Food Co.',
-        productName: 'Happy Cat Kibble',
-        price: '600 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/radish.jpg',
-        brandName: 'Farm Fresh',
-        productName: 'Spicy Radish',
-        price: '600 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/pears.jpg',
-        brandName: 'Fresh Farms',
-        productName: 'Juicy Pears',
-        price: '600 pts',
-      ),
-    ],
-    '900': [
-      ProductItemData(
-        imagePath: 'assets/images/mushrooms.jpg',
-        brandName: 'Gourmet',
-        productName: 'Fresh Mushrooms',
-        price: '900 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/cherries.jpg',
-        brandName: 'Sweet Treats',
-        productName: 'Ripe Cherries',
-        price: '900 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/watermelon.jpg',
-        brandName: 'Green Valley',
-        productName: 'Sweet Watermelon',
-        price: '900 pts',
-      ),
-    ],
-    '1500': [
-      ProductItemData(
-        imagePath: 'assets/images/carrots.jpg',
-        brandName: 'Organic+',
-        productName: 'Crisp Carrots',
-        price: '1500 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/cat.jpg',
-        brandName: 'Pet Food Co.',
-        productName: 'Happy Cat Kibble',
-        price: '1500 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/radish.jpg',
-        brandName: 'Farm Fresh',
-        productName: 'Spicy Radish',
-        price: '1500 pts',
-      ),
-      ProductItemData(
-        imagePath: 'assets/images/cherries.jpg',
-        brandName: 'Sweet Treats',
-        productName: 'Ripe Cherries',
-        price: '1500 pts',
-      ),
-    ],
-  };
+  int? _selectedPoints;
 
   @override
   Widget build(BuildContext context) {
-    final List<ProductItemData> currentRewards =
-        _rewardsData[_selectedPoints] ?? [];
     final primaryColor = Theme.of(context).colorScheme.primary;
+    final rewardsByPoints = _groupRewards(widget.rewards);
 
-    // 修改开始: 移除外层的 Padding 和 Card，直接返回包含内容的 Column
-    // 这样它就可以被无缝地嵌入到父组件的 Card 中
+    if (rewardsByPoints.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 6),
+          const Divider(height: 12),
+          const SizedBox(height: 8),
+          Text(
+            'Rewards are being prepared.',
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          ),
+          const SizedBox(height: 10),
+          _ActionRow(
+            primaryColor: primaryColor,
+            onRefresh: widget.onRefresh,
+            onHide: widget.onHide,
+          ),
+        ],
+      );
+    }
+
+    final pointOptions = rewardsByPoints.keys.toList()..sort();
+    final selectedPoints =
+        _selectedPoints != null && rewardsByPoints.containsKey(_selectedPoints)
+        ? _selectedPoints!
+        : pointOptions.first;
+    final currentRewards = rewardsByPoints[selectedPoints] ?? [];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 添加一个分隔线，实现 "上面部分一个边框" 的视觉效果
         const SizedBox(height: 6),
         const Divider(height: 12),
         const SizedBox(height: 8),
-
-        // --- 以下是 _RewardsSection 的原始内部 UI (保持不变) ---
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _pointOptions.map((points) {
-            return _buildPointButton(
-              context,
-              points,
-              isSelected: _selectedPoints == points,
-              onTap: () {
-                setState(() {
-                  _selectedPoints = points;
-                });
-              },
-            );
-          }).toList(),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: pointOptions.map((points) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildPointButton(
+                  context,
+                  points,
+                  isSelected: selectedPoints == points,
+                  onTap: () {
+                    setState(() {
+                      _selectedPoints = points;
+                    });
+                  },
+                ),
+              );
+            }).toList(),
+          ),
         ),
         const SizedBox(height: 10),
         HorizontalScrollSection(
-          title: '$_selectedPoints Reward Items',
-          items: currentRewards,
+          title: '$selectedPoints pts Rewards',
+          items: currentRewards
+              .asMap()
+              .entries
+              .map((entry) => entry.value.toProductItem(entry.key))
+              .toList(growable: false),
           compact: true,
-          onViewMore: () {
-            if (kDebugMode) {
-              print('View more $_selectedPoints items tapped!');
-            }
-            // Handle "See All Rewards" logic for this specific point category
-          },
         ),
         const SizedBox(height: 10),
-        Center(
-          child: ElevatedButton(
-            onPressed: () {
-              // Handle See All Rewards
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text(
-              'See All Rewards',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Center(
-          child: TextButton(
-            onPressed: () {
-              // Handle About A&W Rewards
-            },
-            style: TextButton.styleFrom(
-              minimumSize: const Size(0, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text('About Rewards', style: TextStyle(color: primaryColor)),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Center(
-          child: ElevatedButton(
-            onPressed: widget.onHide,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: Colors.grey),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Hide', style: TextStyle(color: primaryColor)),
-                const SizedBox(width: 4),
-                Icon(Icons.keyboard_arrow_up, color: primaryColor, size: 20),
-              ],
-            ),
-          ),
+        _ActionRow(
+          primaryColor: primaryColor,
+          onRefresh: widget.onRefresh,
+          onHide: widget.onHide,
         ),
       ],
     );
-    // 修改结束
+  }
+
+  Map<int, List<_RewardItem>> _groupRewards(List<_RewardItem> rewards) {
+    final grouped = <int, List<_RewardItem>>{};
+    for (final reward in rewards) {
+      if (reward.pointsCost <= 0) continue;
+      grouped.putIfAbsent(reward.pointsCost, () => []).add(reward);
+    }
+    return grouped;
   }
 
   Widget _buildPointButton(
     BuildContext context,
-    String points, {
+    int points, {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
@@ -382,7 +361,7 @@ class _RewardsSectionState extends State<_RewardsSection> {
           ),
         ),
         child: Text(
-          points,
+          points.toString(),
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
@@ -392,4 +371,239 @@ class _RewardsSectionState extends State<_RewardsSection> {
       ),
     );
   }
+}
+
+class _ActionRow extends StatelessWidget {
+  final Color primaryColor;
+  final VoidCallback onRefresh;
+  final VoidCallback onHide;
+
+  const _ActionRow({
+    required this.primaryColor,
+    required this.onRefresh,
+    required this.onHide,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        TextButton.icon(
+          onPressed: onRefresh,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: Icon(Icons.refresh, color: primaryColor, size: 18),
+          label: Text('Refresh', style: TextStyle(color: primaryColor)),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          onPressed: onHide,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Colors.grey),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Hide', style: TextStyle(color: primaryColor)),
+              const SizedBox(width: 4),
+              Icon(Icons.keyboard_arrow_up, color: primaryColor, size: 20),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RewardSummary {
+  final int availablePoints;
+  final int pendingPoints;
+  final int lifetimeEarnedPoints;
+  final int nextRewardPoints;
+  final List<_RewardItem> rewards;
+
+  const _RewardSummary({
+    required this.availablePoints,
+    required this.pendingPoints,
+    required this.lifetimeEarnedPoints,
+    required this.nextRewardPoints,
+    required this.rewards,
+  });
+
+  factory _RewardSummary.empty() {
+    return const _RewardSummary(
+      availablePoints: 0,
+      pendingPoints: 0,
+      lifetimeEarnedPoints: 0,
+      nextRewardPoints: 300,
+      rewards: [],
+    );
+  }
+
+  factory _RewardSummary.fromJson(Map<String, dynamic> json) {
+    final account = json['account'] is Map
+        ? Map<String, dynamic>.from(json['account'] as Map)
+        : json;
+    final rewards = _readList(json, const [
+      'rewards',
+      'reward_items',
+      'rewardItems',
+      'items',
+    ]).map(_RewardItem.fromJson).toList(growable: false);
+    final availablePoints = _readInt(account, const [
+      'available_points',
+      'availablePoints',
+      'points',
+    ]);
+    final nextRewardPoints =
+        _readInt(json, const ['next_reward_points', 'nextRewardPoints']) ??
+        _nextRewardTarget(availablePoints ?? 0, rewards);
+
+    return _RewardSummary(
+      availablePoints: availablePoints ?? 0,
+      pendingPoints:
+          _readInt(account, const ['pending_points', 'pendingPoints']) ?? 0,
+      lifetimeEarnedPoints:
+          _readInt(account, const [
+            'lifetime_earned_points',
+            'lifetimeEarnedPoints',
+          ]) ??
+          0,
+      nextRewardPoints: nextRewardPoints,
+      rewards: rewards,
+    );
+  }
+
+  static int _nextRewardTarget(int points, List<_RewardItem> rewards) {
+    final costs =
+        rewards
+            .map((reward) => reward.pointsCost)
+            .where((cost) => cost > points)
+            .toList()
+          ..sort();
+    if (costs.isNotEmpty) return costs.first;
+
+    final allCosts =
+        rewards
+            .map((reward) => reward.pointsCost)
+            .where((cost) => cost > 0)
+            .toList()
+          ..sort();
+    return allCosts.isNotEmpty ? allCosts.last : 300;
+  }
+}
+
+class _RewardItem {
+  final String id;
+  final String title;
+  final String description;
+  final int pointsCost;
+  final String imagePath;
+
+  const _RewardItem({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.pointsCost,
+    required this.imagePath,
+  });
+
+  factory _RewardItem.fromJson(Map<String, dynamic> json) {
+    final pointsCost =
+        _readInt(json, const ['points_cost', 'pointsCost', 'cost', 'points']) ??
+        0;
+    final imagePath = _readString(json, const [
+      'asset_image_path',
+      'assetImagePath',
+      'image_path',
+      'imagePath',
+    ]);
+
+    return _RewardItem(
+      id: _readString(json, const ['reward_id', 'rewardId', 'id']) ?? '',
+      title:
+          _readString(json, const ['title', 'name', 'reward_name']) ??
+          'Reward Item',
+      description:
+          _readString(json, const ['description', 'reward_type', 'type']) ??
+          'Reward',
+      pointsCost: pointsCost,
+      imagePath: _localRewardAsset(imagePath, pointsCost),
+    );
+  }
+
+  ProductItemData toProductItem(int index) {
+    return ProductItemData(
+      imagePath: imagePath,
+      brandName: '$pointsCost pts',
+      productName: title,
+      price: '$pointsCost pts',
+    );
+  }
+
+  static String _localRewardAsset(String? imagePath, int pointsCost) {
+    if (imagePath != null &&
+        imagePath.isNotEmpty &&
+        imagePath.startsWith('assets/')) {
+      return imagePath;
+    }
+
+    final fallbacks = [
+      'assets/images/pears.jpg',
+      'assets/images/watermelon.jpg',
+      'assets/images/carrots.jpg',
+      'assets/images/mushrooms.jpg',
+      'assets/images/cherries.jpg',
+      'assets/images/radish.jpg',
+    ];
+    return fallbacks[pointsCost.abs() % fallbacks.length];
+  }
+}
+
+List<Map<String, dynamic>> _readList(
+  Map<String, dynamic> json,
+  List<String> keys,
+) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is List) {
+      return value
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+    }
+  }
+  return [];
+}
+
+int? _readInt(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
+String? _readString(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key]?.toString().trim();
+    if (value != null && value.isNotEmpty) return value;
+  }
+  return null;
 }

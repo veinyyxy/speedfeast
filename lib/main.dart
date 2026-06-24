@@ -9,6 +9,7 @@ import 'OrderPage/recent_order_page.dart';
 import 'OrderPage/dine_in_scan_page.dart';
 import 'MoreMenu/more_main_menu.dart';
 import 'MoreMenu/more_my_account_personal_info.dart';
+import 'MoreMenu/rewards_activity_page.dart';
 import 'Payment/add_payment_method.dart';
 import 'Payment/payment_list_page.dart';
 import 'RegisterPage/sign_up_screen.dart';
@@ -118,6 +119,7 @@ class MyApp extends StatelessWidget {
         '/more_page/payment_options': (context) => AddPaymentMethodPage(),
         '/more_page/payment_options/payment_list': (context) =>
             PaymentListPage(),
+        '/more_page/rewards_activity': (context) => RewardsActivityPage(),
         'register/mobile_number_page': (context) => MobileNumberPage(),
         '/register/sign_up_screen': (context) => SignUpScreen(),
         '/register/VerificationPage': (context) {
