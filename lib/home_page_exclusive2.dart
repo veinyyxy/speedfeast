@@ -41,11 +41,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
-    // 在 WidgetsBinding.instance.addPostFrameCallback 中执行，
-    // 确保 build 方法已经完成，context 是可用的。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkRegistrationStatus(context);
-    });
   }
 
   @override
@@ -144,57 +139,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _checkRegistrationStatus(BuildContext context) async {
-    // 使用 Provider 获取 ServiceProvider 实例
-    final serviceProvider = Provider.of<ServiceProvider>(
-      context,
-      listen: false,
-    );
-
-    final bool isLoggedIn = serviceProvider.isLoggedIn; // 替换为您的实际检查逻辑
-
-    if (!isLoggedIn) {
-      // 如果用户未登录，则显示注册提示对话框
-      showDialog(
-        context: context,
-        barrierDismissible: false, // 用户必须选择一个选项，不能随意点击外部关闭
-        builder: (BuildContext dialogContext) {
-          return AlertDialog(
-            title: const Text('Welcome to SpeedFeast!'),
-            content: const Text(
-              'Register now to unlock exclusive features, save your orders, and enjoy a personalized experience.',
-            ),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Continue as Guest'),
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(); // 关闭对话框
-                },
-              ),
-              ElevatedButton(
-                child: const Text('Register Now'),
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(); // 关闭对话框
-                  // 导航到注册页面
-                  Navigator.of(
-                    context,
-                  ).pushNamed('register/mobile_number_page');
-                },
-              ),
-              ElevatedButton(
-                child: const Text('Login Now'),
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(); // 关闭对话框
-                  showLoginDialog(context);
-                },
-              ),
-            ],
-          );
-        },
-      );
-    }
-  }
-
   void _scrollListener() {
     const scrollThreshold = 200.0 - kToolbarHeight;
     double offset = _scrollController.offset;
@@ -258,7 +202,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _handleAccountStatusTap(bool isLoggedIn) async {
     if (!isLoggedIn) {
-      final loggedIn = await showLoginDialog(context);
+      final loggedIn = await showLoginDialog(
+        context,
+        reason: LoginPromptReason.account,
+      );
       if (!mounted) return;
       if (loggedIn == true) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -361,7 +308,11 @@ class _HomePageState extends State<HomePage> {
         break;
       case 1:
         setState(() => _selectedIndex = 1);
-        await Navigator.pushNamed(context, '/order_page/recent_orders');
+        final isLoggedIn = context.read<ServiceProvider>().isLoggedIn;
+        await Navigator.pushNamed(
+          context,
+          isLoggedIn ? '/order_page/recent_orders' : '/order_page',
+        );
         if (mounted) {
           setState(() => _selectedIndex = 0);
         }

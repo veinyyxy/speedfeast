@@ -189,8 +189,8 @@ class _VerificationPageState extends State<VerificationPage> {
       );
       if (res) {
         String testToken = _tokenInfo!['token'];
-        serviceProvider.saveUserToken(testToken);
-        debugPrint('Token: $testToken');
+        serviceProvider.saveRegistrationToken(testToken);
+        debugPrint('Registration token received.');
         _successMessage = 'Verification successful!';
       } else {
         _errorMessage = 'Invalid code. Please try again.';

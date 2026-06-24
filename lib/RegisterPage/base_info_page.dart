@@ -54,21 +54,58 @@ class BaseInfoPageState extends State<BaseInfoPage> {
   // State variable to hold the current email address, which can be modified
   late String? _currentEmail;
   late String? _currentPhone;
+  String? _passwordError;
+  String? _confirmPasswordError;
 
   @override
   void initState() {
     super.initState();
     _currentEmail = widget._email;
     _currentPhone = widget._phone;
+    _passwordController.addListener(_clearPasswordErrors);
+    _confirmPasswordController.addListener(_clearPasswordErrors);
   }
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _passwordController.removeListener(_clearPasswordErrors);
+    _confirmPasswordController.removeListener(_clearPasswordErrors);
     _passwordController.dispose(); // 销毁 _passwordController
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _clearPasswordErrors() {
+    if (_passwordError == null && _confirmPasswordError == null) return;
+    setState(() {
+      _passwordError = null;
+      _confirmPasswordError = null;
+    });
+  }
+
+  bool _validatePasswordFields() {
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    String? nextPasswordError;
+    String? nextConfirmPasswordError;
+
+    if (password.trim().isEmpty) {
+      nextPasswordError = 'Password is required.';
+    }
+    if (confirmPassword.trim().isEmpty) {
+      nextConfirmPasswordError = 'Confirm password is required.';
+    } else if (password != confirmPassword) {
+      nextConfirmPasswordError = 'Passwords do not match.';
+    }
+
+    setState(() {
+      _passwordError = nextPasswordError;
+      _confirmPasswordError = nextConfirmPasswordError;
+    });
+
+    return nextPasswordError == null && nextConfirmPasswordError == null;
   }
 
   // Function to show the email edit dialog
@@ -153,37 +190,42 @@ class BaseInfoPageState extends State<BaseInfoPage> {
                 'Profile',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              SizedBox(height: 6),
+              Text(
+                'Your profile details are carried from the previous step. Set a password to finish registration.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
               SizedBox(height: 10),
               // 使用 EditableField widget
               EditableField(
-                label: 'First Name *',
+                label: 'First Name',
                 controller: _firstNameController,
                 isLocked: false,
               ),
               SizedBox(height: 10),
               EditableField(
-                label: 'Last Name *',
+                label: 'Last Name',
                 controller: _lastNameController,
                 isLocked: false,
               ),
               SizedBox(height: 10),
               SelectEditBox(
                 key: const ValueKey('phone_number_field'),
-                label: 'Phone number *',
+                label: 'Phone number',
                 value: _currentPhone != null ? _currentPhone! : '',
                 // 注册时通常为空
-                onTap: () => print('Show edit dialog for Phone number.'),
+                onTap: () => debugPrint('Show edit dialog for Phone number.'),
                 onIconTap: () {
-                  print('Show Dialog for Phone number.');
+                  debugPrint('Show Dialog for Phone number.');
                 },
               ),
               SizedBox(height: 10),
               SelectEditBox(
                 key: const ValueKey('email_address_field'),
-                label: 'Email Address *',
+                label: 'Email Address',
                 value: _currentEmail != null ? _currentEmail! : '',
                 // 注册时通常为空
-                onTap: () => print('Show edit dialog for Email Address.'),
+                onTap: () => debugPrint('Show edit dialog for Email Address.'),
                 onIconTap: () {
                   _showEditEmailDialog(context); // 点击图标时触发弹窗
                 },
@@ -193,12 +235,18 @@ class BaseInfoPageState extends State<BaseInfoPage> {
                 'Password',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              SizedBox(height: 6),
+              Text(
+                'Password and confirmation are required.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
               SizedBox(height: 10),
               // 注册时只需要输入新密码和确认密码
               PasswordField(
-                label: 'Password*', // 标签改为 Password*
+                label: 'Password *', // 标签改为 Password*
                 controller: _passwordController, // 使用 _passwordController
                 isVisible: _showPassword,
+                errorText: _passwordError,
                 onToggle: (value) {
                   setState(() {
                     _showPassword = value;
@@ -207,9 +255,10 @@ class BaseInfoPageState extends State<BaseInfoPage> {
               ),
               SizedBox(height: 10),
               PasswordField(
-                label: 'Confirm*',
+                label: 'Confirm password *',
                 controller: _confirmPasswordController,
                 isVisible: _showConfirmPassword,
+                errorText: _confirmPasswordError,
                 onToggle: (value) {
                   setState(() {
                     _showConfirmPassword = value;
@@ -219,14 +268,14 @@ class BaseInfoPageState extends State<BaseInfoPage> {
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () async {
+                  if (!_validatePasswordFields()) return;
+
+                  final messenger = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(context);
                   // Access updated values from controllers
                   debugPrint('Registering user with the following info:');
                   debugPrint('First Name: ${_firstNameController.text}');
                   debugPrint('Last Name: ${_lastNameController.text}');
-                  debugPrint('Password: ${_passwordController.text}'); // 获取密码
-                  debugPrint(
-                    'Confirm Password: ${_confirmPasswordController.text}',
-                  ); // 获取确认密码
                   bool isRegisterSuccess = await serviceProvider.registerUser(
                     '${_firstNameController.text} ${_lastNameController.text}',
                     _currentPhone ?? '',
@@ -239,23 +288,19 @@ class BaseInfoPageState extends State<BaseInfoPage> {
                   if (isRegisterSuccess) {
                     // 注册成功，跳转到主页或登录页
                     debugPrint('Registration successful!');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Registration successful! Please log in.',
-                        ),
-                      ),
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Registration successful!')),
                     );
                     // 假设你的登录页是 LoginPage，或者直接跳转到 HomePage
                     // 你需要替换为你实际的目标路由
-                    Navigator.of(context).pushNamedAndRemoveUntil(
+                    navigator.pushNamedAndRemoveUntil(
                       '/', // 替换为你的主页或登录页
                       (Route<dynamic> route) => false, // 移除所有之前的路由
                     );
                   } else {
                     // 注册失败
                     debugPrint('Registration failed.');
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text('Registration failed. Please try again.'),
                       ),

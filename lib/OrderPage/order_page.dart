@@ -322,7 +322,10 @@ class _OrderPageState extends State<OrderPage> {
   Future<void> _openDeliveryAddressSelector() async {
     final serviceProvider = context.read<ServiceProvider>();
     if (!serviceProvider.isLoggedIn) {
-      final loginResult = await showLoginDialog(context);
+      final loginResult = await showLoginDialog(
+        context,
+        reason: LoginPromptReason.deliveryAddress,
+      );
       if (!mounted) return;
       if (loginResult == true) {
         await _loadDeliveryAddresses();
@@ -674,7 +677,10 @@ class _OrderPageState extends State<OrderPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please log in before making an order.')),
       );
-      final loginResult = await showLoginDialog(context);
+      final loginResult = await showLoginDialog(
+        context,
+        reason: LoginPromptReason.checkout,
+      );
       if (!mounted) return;
       if (loginResult == true) {
         await _loadDeliveryAddresses();
@@ -763,7 +769,10 @@ class _OrderPageState extends State<OrderPage> {
         ).showSnackBar(SnackBar(content: Text(orderError)));
 
         if (_isAuthenticationError(orderError)) {
-          final loginResult = await showLoginDialog(context);
+          final loginResult = await showLoginDialog(
+            context,
+            reason: LoginPromptReason.sessionExpired,
+          );
           if (!mounted) return;
           if (loginResult == true) {
             ScaffoldMessenger.of(context).showSnackBar(

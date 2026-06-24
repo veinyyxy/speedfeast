@@ -41,7 +41,10 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
   }
 
   Future<void> _showLoginDialog() async {
-    final result = await showLoginDialog(context);
+    final result = await showLoginDialog(
+      context,
+      reason: LoginPromptReason.recentOrders,
+    );
     if (!mounted) return;
     if (result == true) {
       await _reloadOrders();

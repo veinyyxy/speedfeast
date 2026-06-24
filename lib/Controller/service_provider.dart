@@ -29,11 +29,13 @@ class ServiceProvider with ChangeNotifier {
   dynamic _initData;
   bool _isLoggedIn = false;
   String? _userToken;
+  String? _registrationToken;
   String? _lastOrderError;
   String? _lastPaymentError;
   String? _lastRecentOrdersError;
   String? _lastReviewError;
   String? _lastDineInError;
+  String? _lastLoginError;
   Map<String, dynamic>? _dineInTableContext;
   late ApiService _apiService;
 
@@ -46,6 +48,7 @@ class ServiceProvider with ChangeNotifier {
   String? get lastRecentOrdersError => _lastRecentOrdersError;
   String? get lastReviewError => _lastReviewError;
   String? get lastDineInError => _lastDineInError;
+  String? get lastLoginError => _lastLoginError;
   Map<String, dynamic>? get dineInTableContext => _dineInTableContext == null
       ? null
       : Map<String, dynamic>.from(_dineInTableContext!);
@@ -1085,9 +1088,7 @@ class ServiceProvider with ChangeNotifier {
     return [];
   }
 
-  ServiceProvider() {
-    _loadUserStatus();
-  }
+  ServiceProvider();
 
   // ** 4. 新增异步初始化方法 **
   Future<void> initialize() async {
@@ -1099,11 +1100,18 @@ class ServiceProvider with ChangeNotifier {
     features = await collectFeatures();
     debugPrint('Security features collected: $features');
 
-    // 加载用户状态 (此方法内部有 await)
-    await _loadUserStatus();
+    // 读取本地 token，但先不要把它视为已登录；必须等服务端验证通过。
+    await _loadUserStatus(trustStoredToken: false, notify: false);
 
     // 加载配置 (此方法内部有 await)
     await loadConfig();
+
+    if (_userToken != null && _userToken!.isNotEmpty) {
+      final tokenIsValid = await validateToken();
+      debugPrint(
+        'Stored token validation during initialization: $tokenIsValid',
+      );
+    }
 
     // 初始化完成后，可以尝试获取初始化数据
     await fetchInitData();
@@ -1114,17 +1122,24 @@ class ServiceProvider with ChangeNotifier {
   }
 
   // --- 用户状态管理 ---
-  Future<void> _loadUserStatus() async {
+  Future<void> _loadUserStatus({
+    bool trustStoredToken = true,
+    bool notify = true,
+  }) async {
     _userToken = await _secureStorage.read(key: 'user_token');
-    _isLoggedIn = _userToken != null && _userToken!.isNotEmpty;
+    final hasStoredToken = _userToken != null && _userToken!.isNotEmpty;
+    _isLoggedIn = trustStoredToken && hasStoredToken;
     await _switchCartStorageForToken(_userToken);
     debugPrint(
-      'User status loaded: isLoggedIn=$_isLoggedIn, token=${_userToken != null ? "exists" : "null"}',
+      'User status loaded: isLoggedIn=$_isLoggedIn, token=${hasStoredToken ? "exists" : "null"}',
     );
-    notifyListeners();
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   Future<void> saveUserToken(String token) async {
+    _registrationToken = null;
     await _switchCartStorageForToken(token);
     await _secureStorage.write(key: 'user_token', value: token);
     _userToken = token;
@@ -1135,10 +1150,18 @@ class ServiceProvider with ChangeNotifier {
   }
 
   Future<void> _clearUserSessionAndLoadGuestCart() async {
+    _registrationToken = null;
     await _switchCartStorageForToken(null);
     await _secureStorage.delete(key: 'user_token');
     _userToken = null;
     _isLoggedIn = false;
+  }
+
+  void saveRegistrationToken(String token) {
+    final normalizedToken = token.trim();
+    if (normalizedToken.isEmpty) return;
+    _registrationToken = normalizedToken;
+    debugPrint('Registration token stored for current registration flow.');
   }
 
   Future<bool> loginUser({
@@ -1148,11 +1171,13 @@ class ServiceProvider with ChangeNotifier {
   }) async {
     if (_config == null) {
       debugPrint('Config not loaded yet for loginUser.');
+      _lastLoginError = 'Service config is not loaded.';
       return false;
     }
     if ((username == null || username.isEmpty) &&
         (cellPhone == null || cellPhone.isEmpty)) {
       debugPrint('Login failed: username or cell phone is required.');
+      _lastLoginError = 'Phone number is required.';
       return false;
     }
 
@@ -1163,6 +1188,8 @@ class ServiceProvider with ChangeNotifier {
     };
 
     try {
+      _lastLoginError = null;
+      _registrationToken = null;
       final rawResponse = await _apiService.post(
         _config!.getLoginPath(),
         requestBody,
@@ -1174,10 +1201,12 @@ class ServiceProvider with ChangeNotifier {
         final token = responseData['token']?.toString();
         if (token == null || token.isEmpty) {
           debugPrint('Login failed: server did not return a token.');
+          _lastLoginError = 'The server did not return a login token.';
           return false;
         }
 
         await saveUserToken(token);
+        _lastLoginError = null;
         debugPrint('Login successful: ${responseData['message']}');
         return true;
       }
@@ -1186,13 +1215,18 @@ class ServiceProvider with ChangeNotifier {
           responseData['error']?.toString() ??
           responseData['message']?.toString() ??
           'Server indicated login failed.';
+      _lastLoginError = errorMessage;
       debugPrint('Server indicated login failure: $errorMessage');
       return false;
     } on AppException catch (e) {
       debugPrint('Error during user login: ${e.message}');
+      _lastLoginError = e.statusCode == 401
+          ? 'Incorrect phone number or password.'
+          : e.message;
       return false;
     } catch (e) {
       debugPrint('An unexpected error occurred during user login: $e');
+      _lastLoginError = 'An unexpected error occurred during login.';
       return false;
     }
   }
@@ -1396,13 +1430,17 @@ class ServiceProvider with ChangeNotifier {
       'password': password,
       // 如果后端需要确认密码，可以添加 'confirmPassword': password
     };
+    final tokenForRegistration = _registrationToken ?? _userToken;
+    if (tokenForRegistration == null || tokenForRegistration.isEmpty) {
+      debugPrint('Cannot register user: registration token is missing.');
+      return false;
+    }
 
     try {
-      // 注册通常不需要用户Token，因为它发生在登录之前
       final rawResponse = await _apiService.post(
         _config!.getRegisterPath(), // 使用新的注册接口路径
         requestBody, // 将请求体传递给post方法
-        token: _userToken, // 注册通常不需要token
+        token: tokenForRegistration,
       );
 
       final Map<String, dynamic> responseData =
@@ -1410,8 +1448,15 @@ class ServiceProvider with ChangeNotifier {
 
       if (responseData['success'] == true) {
         debugPrint('Registration successful: ${responseData['message']}');
-        // 注册成功后，你可能需要自动登录用户或引导他们登录
-        // 例如：loginUser(responseData['token'] as String);
+        final token = responseData['token']?.toString();
+        if (token == null || token.isEmpty) {
+          debugPrint(
+            'Registration failed: server did not return a login token.',
+          );
+          return false;
+        }
+
+        await saveUserToken(token);
         return true;
       } else {
         String errorMessage =
