@@ -492,9 +492,35 @@ class _OrderItemLine extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  '${item.quantity}x ${item.name}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '${item.quantity}x ${item.name}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if (item.isRewardItem)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withAlpha(28),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Reward',
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (price.isNotEmpty) ...[
@@ -967,6 +993,7 @@ class RecentOrderItem {
     required this.name,
     required this.quantity,
     required this.price,
+    this.itemSource = 'normal',
     this.reviewRating = 0,
     this.options = const [],
     this.specialInstructions = '',
@@ -977,9 +1004,12 @@ class RecentOrderItem {
   final String name;
   final int quantity;
   final double price;
+  final String itemSource;
   final int reviewRating;
   final List<RecentOrderItemOption> options;
   final String specialInstructions;
+
+  bool get isRewardItem => itemSource.toLowerCase() == 'reward';
 
   String get optionsLabel {
     if (options.isEmpty) return '';
@@ -1028,6 +1058,10 @@ class RecentOrderItem {
         'total_price',
         'totalPrice',
       ]),
+      itemSource: _firstString(json, const [
+        'item_source',
+        'itemSource',
+      ], fallback: 'normal'),
       reviewRating: _firstInt(json, const [
         'review_rating',
         'reviewRating',

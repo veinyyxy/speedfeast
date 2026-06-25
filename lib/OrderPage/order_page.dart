@@ -119,6 +119,9 @@ class RewardRedemptionSummary {
   final double discountAmount;
   final String currency;
   final String expiresAt;
+  final String rewardType;
+  final String productId;
+  final String productName;
 
   const RewardRedemptionSummary({
     required this.id,
@@ -127,6 +130,9 @@ class RewardRedemptionSummary {
     required this.discountAmount,
     required this.currency,
     required this.expiresAt,
+    required this.rewardType,
+    required this.productId,
+    required this.productName,
   });
 
   factory RewardRedemptionSummary.fromJson(Map<String, dynamic> json) {
@@ -142,21 +148,54 @@ class RewardRedemptionSummary {
     final discountAmount = _asDouble(
       json['discount_amount'] ?? json['discountAmount'],
     );
+    final rewardType =
+        _asText(json['reward_type'] ?? json['rewardType']).isNotEmpty
+        ? _asText(json['reward_type'] ?? json['rewardType'])
+        : _asText(reward['reward_type'] ?? reward['rewardType']).isNotEmpty
+        ? _asText(reward['reward_type'] ?? reward['rewardType'])
+        : 'discount';
+    final productName =
+        _asText(json['product_name'] ?? json['productName']).isNotEmpty
+        ? _asText(json['product_name'] ?? json['productName'])
+        : _asText(reward['product_name'] ?? reward['productName']);
 
     return RewardRedemptionSummary(
       id: _asText(json['redemption_id'] ?? json['redemptionId'] ?? json['id']),
       title: title,
       pointsCost: pointsCost,
-      discountAmount: discountAmount <= 0 ? pointsCost / 100 : discountAmount,
+      discountAmount: rewardType == 'product'
+          ? 0
+          : discountAmount <= 0
+          ? pointsCost / 100
+          : discountAmount,
       currency: _asText(json['currency']).isEmpty
           ? 'CAD'
           : _asText(json['currency']),
       expiresAt: _asText(json['expires_at'] ?? json['expiresAt']),
+      rewardType: rewardType,
+      productId: _asText(
+        json['product_id'] ??
+            json['productId'] ??
+            reward['product_id'] ??
+            reward['productId'],
+      ),
+      productName: productName,
     );
   }
 
+  bool get isProductReward => rewardType.toLowerCase() == 'product';
+
   String get discountLabel =>
       '${currency.toUpperCase()} \$${discountAmount.toStringAsFixed(2)} off';
+
+  String get valueLabel {
+    if (isProductReward) {
+      return productName.isEmpty
+          ? 'Free product'
+          : 'Free product: $productName';
+    }
+    return discountLabel;
+  }
 
   String get expiresLabel {
     if (expiresAt.isEmpty) return 'No expiry set';
@@ -358,7 +397,11 @@ class _OrderPageState extends State<OrderPage> {
           (item) =>
               RewardRedemptionSummary.fromJson(Map<String, dynamic>.from(item)),
         )
-        .where((item) => item.id.isNotEmpty && item.discountAmount > 0)
+        .where(
+          (item) =>
+              item.id.isNotEmpty &&
+              (item.discountAmount > 0 || item.isProductReward),
+        )
         .toList(growable: false);
     final selectedId = _selectedRewardRedemption?.id ?? '';
     RewardRedemptionSummary? selected;
@@ -452,7 +495,7 @@ class _OrderPageState extends State<OrderPage> {
                           ),
                           title: Text(redemption.title),
                           subtitle: Text(
-                            '${redemption.discountLabel} • ${redemption.expiresLabel}',
+                            '${redemption.valueLabel} • ${redemption.expiresLabel}',
                           ),
                           trailing: Text('${redemption.pointsCost} pts'),
                           onTap: () => Navigator.pop(sheetContext, redemption),
@@ -729,6 +772,7 @@ class _OrderPageState extends State<OrderPage> {
   double get rewardDiscount {
     final selected = _selectedRewardRedemption;
     if (selected == null) return 0;
+    if (selected.isProductReward) return 0;
     return selected.discountAmount.clamp(0, totalBeforeRewards).toDouble();
   }
 
@@ -1365,7 +1409,7 @@ class _OrderPageState extends State<OrderPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${selected.discountLabel} applied',
+                          '${selected.valueLabel} applied',
                           style: TextStyle(
                             color: Colors.green.shade700,
                             fontSize: 13,

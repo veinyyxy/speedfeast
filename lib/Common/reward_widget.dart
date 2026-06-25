@@ -45,7 +45,7 @@ class _RewardWidgetState extends State<RewardWidget> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Redeem reward?'),
         content: Text(
-          'Redeem ${reward.pointsCost} pts for ${reward.discountLabel}?',
+          'Redeem ${reward.pointsCost} pts for ${reward.valueLabel}?',
         ),
         actions: [
           TextButton(
@@ -68,7 +68,7 @@ class _RewardWidgetState extends State<RewardWidget> {
 
     setState(() => _redeemingRewardId = null);
     final message = result != null
-        ? '${reward.discountLabel} voucher added to My Rewards.'
+        ? '${reward.valueLabel} voucher added to My Rewards.'
         : serviceProvider.lastRewardsError ?? 'Reward could not be redeemed.';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -486,7 +486,12 @@ class _RewardVoucherCard extends StatelessWidget {
                   color: primaryColor.withAlpha(20),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Icon(Icons.local_offer_outlined, color: primaryColor),
+                child: Icon(
+                  reward.isProductReward
+                      ? Icons.restaurant_menu_outlined
+                      : Icons.local_offer_outlined,
+                  color: primaryColor,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
@@ -497,7 +502,7 @@ class _RewardVoucherCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                reward.discountLabel,
+                reward.valueLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
@@ -687,6 +692,10 @@ class _RewardItem {
   final int pointsCost;
   final double discountAmount;
   final String currency;
+  final String rewardType;
+  final String productId;
+  final String productName;
+  final String? productImagePath;
 
   const _RewardItem({
     required this.id,
@@ -695,6 +704,10 @@ class _RewardItem {
     required this.pointsCost,
     required this.discountAmount,
     required this.currency,
+    required this.rewardType,
+    required this.productId,
+    required this.productName,
+    required this.productImagePath,
   });
 
   factory _RewardItem.fromJson(Map<String, dynamic> json) {
@@ -714,7 +727,27 @@ class _RewardItem {
           _readDouble(json, const ['discount_amount', 'discountAmount']) ??
           pointsCost / 100,
       currency: _readString(json, const ['currency']) ?? 'CAD',
+      rewardType:
+          _readString(json, const ['reward_type', 'rewardType']) ?? 'discount',
+      productId: _readString(json, const ['product_id', 'productId']) ?? '',
+      productName:
+          _readString(json, const ['product_name', 'productName']) ?? '',
+      productImagePath: _readString(json, const [
+        'product_image_path',
+        'productImagePath',
+      ]),
     );
+  }
+
+  bool get isProductReward => rewardType.toLowerCase() == 'product';
+
+  String get valueLabel {
+    if (isProductReward) {
+      return productName.isEmpty
+          ? 'Free product'
+          : 'Free product: $productName';
+    }
+    return discountLabel;
   }
 
   String get discountLabel {

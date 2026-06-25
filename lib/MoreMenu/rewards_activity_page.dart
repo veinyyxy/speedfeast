@@ -218,7 +218,7 @@ class _RewardRedemptionCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                redemption.discountLabel,
+                redemption.valueLabel,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -640,6 +640,8 @@ class _RewardRedemption {
   final String currency;
   final String status;
   final String expiresAt;
+  final String rewardType;
+  final String productName;
 
   const _RewardRedemption({
     required this.id,
@@ -649,6 +651,8 @@ class _RewardRedemption {
     required this.currency,
     required this.status,
     required this.expiresAt,
+    required this.rewardType,
+    required this.productName,
   });
 
   factory _RewardRedemption.fromJson(Map<String, dynamic> json) {
@@ -661,6 +665,16 @@ class _RewardRedemption {
       'discountAmount',
     ]);
     final rewardTitle = _readString(reward, const ['title', 'name']);
+    final rewardType =
+        _readString(json, const ['reward_type', 'rewardType']).isNotEmpty
+        ? _readString(json, const ['reward_type', 'rewardType'])
+        : _readString(reward, const ['reward_type', 'rewardType']).isNotEmpty
+        ? _readString(reward, const ['reward_type', 'rewardType'])
+        : 'discount';
+    final productName =
+        _readString(json, const ['product_name', 'productName']).isNotEmpty
+        ? _readString(json, const ['product_name', 'productName'])
+        : _readString(reward, const ['product_name', 'productName']);
 
     return _RewardRedemption(
       id: _readString(json, const ['redemption_id', 'redemptionId', 'id']),
@@ -668,13 +682,30 @@ class _RewardRedemption {
           ? rewardTitle
           : _readString(json, const ['title', 'name']),
       pointsCost: pointsCost,
-      discountAmount: discountAmount <= 0 ? pointsCost / 100 : discountAmount,
+      discountAmount: rewardType == 'product'
+          ? 0
+          : discountAmount <= 0
+          ? pointsCost / 100
+          : discountAmount,
       currency: _readString(json, const ['currency']).isEmpty
           ? 'CAD'
           : _readString(json, const ['currency']),
       status: _readString(json, const ['status']),
       expiresAt: _readString(json, const ['expires_at', 'expiresAt']),
+      rewardType: rewardType,
+      productName: productName,
     );
+  }
+
+  bool get isProductReward => rewardType.toLowerCase() == 'product';
+
+  String get valueLabel {
+    if (isProductReward) {
+      return productName.isEmpty
+          ? 'Free product'
+          : 'Free product: $productName';
+    }
+    return discountLabel;
   }
 
   String get discountLabel {

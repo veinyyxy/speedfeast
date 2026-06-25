@@ -39,6 +39,7 @@ class MyApp extends StatelessWidget {
     const primaryColor = Colors.lightBlue;
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // 将主色调改为 DeepOrange
         primarySwatch: primaryColor,
