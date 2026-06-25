@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../Controller/service_provider.dart';
 import '../RegisterPage/phone_login_page.dart';
-import 'horizontal_scroll_section.dart';
 
 class RewardWidget extends StatefulWidget {
   const RewardWidget({super.key});
@@ -15,6 +14,7 @@ class RewardWidget extends StatefulWidget {
 class _RewardWidgetState extends State<RewardWidget> {
   bool _isExpanded = false;
   bool? _lastLoggedIn;
+  String? _redeemingRewardId;
   Future<_RewardSummary?>? _summaryFuture;
 
   Future<_RewardSummary?> _loadSummary(ServiceProvider serviceProvider) async {
@@ -34,6 +34,53 @@ class _RewardWidgetState extends State<RewardWidget> {
           ? _loadSummary(serviceProvider)
           : Future.value(_RewardSummary.empty());
     });
+  }
+
+  Future<void> _confirmRedeem(
+    ServiceProvider serviceProvider,
+    _RewardItem reward,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Redeem reward?'),
+        content: Text(
+          'Redeem ${reward.pointsCost} pts for ${reward.discountLabel}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Redeem'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _redeemingRewardId = reward.id);
+    final result = await serviceProvider.redeemReward(reward.id);
+    if (!mounted) return;
+
+    setState(() => _redeemingRewardId = null);
+    final message = result != null
+        ? '${reward.discountLabel} voucher added to My Rewards.'
+        : serviceProvider.lastRewardsError ?? 'Reward could not be redeemed.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: result == null ? Colors.red.shade700 : null,
+      ),
+    );
+
+    if (result != null) {
+      _refresh(serviceProvider);
+    }
   }
 
   @override
@@ -210,6 +257,9 @@ class _RewardWidgetState extends State<RewardWidget> {
               if (isLoggedIn && _isExpanded)
                 _RewardsSection(
                   rewards: summary.rewards,
+                  availablePoints: summary.availablePoints,
+                  redeemingRewardId: _redeemingRewardId,
+                  onRedeem: (reward) => _confirmRedeem(serviceProvider, reward),
                   onRefresh: () => _refresh(serviceProvider),
                   onHide: () {
                     setState(() {
@@ -237,11 +287,17 @@ class _RewardWidgetState extends State<RewardWidget> {
 
 class _RewardsSection extends StatefulWidget {
   final List<_RewardItem> rewards;
+  final int availablePoints;
+  final String? redeemingRewardId;
+  final ValueChanged<_RewardItem> onRedeem;
   final VoidCallback onRefresh;
   final VoidCallback onHide;
 
   const _RewardsSection({
     required this.rewards,
+    required this.availablePoints,
+    required this.redeemingRewardId,
+    required this.onRedeem,
     required this.onRefresh,
     required this.onHide,
   });
@@ -313,14 +369,32 @@ class _RewardsSectionState extends State<_RewardsSection> {
           ),
         ),
         const SizedBox(height: 10),
-        HorizontalScrollSection(
-          title: '$selectedPoints pts Rewards',
-          items: currentRewards
-              .asMap()
-              .entries
-              .map((entry) => entry.value.toProductItem(entry.key))
-              .toList(growable: false),
-          compact: true,
+        Text(
+          '$selectedPoints pts Rewards',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 190,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: currentRewards.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final reward = currentRewards[index];
+              return _RewardVoucherCard(
+                reward: reward,
+                canRedeem:
+                    widget.availablePoints >= reward.pointsCost &&
+                    reward.id.isNotEmpty &&
+                    widget.redeemingRewardId == null,
+                isRedeeming: widget.redeemingRewardId == reward.id,
+                onRedeem: () => widget.onRedeem(reward),
+              );
+            },
+          ),
         ),
         const SizedBox(height: 10),
         _ActionRow(
@@ -366,6 +440,108 @@ class _RewardsSectionState extends State<_RewardsSection> {
             fontSize: 13,
             fontWeight: FontWeight.bold,
             color: isSelected ? Colors.white : Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardVoucherCard extends StatelessWidget {
+  const _RewardVoucherCard({
+    required this.reward,
+    required this.canRedeem,
+    required this.isRedeeming,
+    required this.onRedeem,
+  });
+
+  final _RewardItem reward;
+  final bool canRedeem;
+  final bool isRedeeming;
+  final VoidCallback onRedeem;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return SizedBox(
+      width: 170,
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: primaryColor.withAlpha(20),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Icon(Icons.local_offer_outlined, color: primaryColor),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                reward.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                reward.discountLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+              ),
+              if (reward.description.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  reward.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                ),
+              ],
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: FilledButton(
+                  onPressed: canRedeem ? onRedeem : null,
+                  style: FilledButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: isRedeeming
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          canRedeem
+                              ? 'Redeem'
+                              : 'Need ${reward.pointsCost} pts',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -509,27 +685,22 @@ class _RewardItem {
   final String title;
   final String description;
   final int pointsCost;
-  final String imagePath;
+  final double discountAmount;
+  final String currency;
 
   const _RewardItem({
     required this.id,
     required this.title,
     required this.description,
     required this.pointsCost,
-    required this.imagePath,
+    required this.discountAmount,
+    required this.currency,
   });
 
   factory _RewardItem.fromJson(Map<String, dynamic> json) {
     final pointsCost =
         _readInt(json, const ['points_cost', 'pointsCost', 'cost', 'points']) ??
         0;
-    final imagePath = _readString(json, const [
-      'asset_image_path',
-      'assetImagePath',
-      'image_path',
-      'imagePath',
-    ]);
-
     return _RewardItem(
       id: _readString(json, const ['reward_id', 'rewardId', 'id']) ?? '',
       title:
@@ -539,36 +710,31 @@ class _RewardItem {
           _readString(json, const ['description', 'reward_type', 'type']) ??
           'Reward',
       pointsCost: pointsCost,
-      imagePath: _localRewardAsset(imagePath, pointsCost),
+      discountAmount:
+          _readDouble(json, const ['discount_amount', 'discountAmount']) ??
+          pointsCost / 100,
+      currency: _readString(json, const ['currency']) ?? 'CAD',
     );
   }
 
-  ProductItemData toProductItem(int index) {
-    return ProductItemData(
-      imagePath: imagePath,
-      brandName: '$pointsCost pts',
-      productName: title,
-      price: '$pointsCost pts',
-    );
+  String get discountLabel {
+    final amount = discountAmount <= 0 ? pointsCost / 100 : discountAmount;
+    return '${currency.toUpperCase()} \$${amount.toStringAsFixed(2)} off';
   }
+}
 
-  static String _localRewardAsset(String? imagePath, int pointsCost) {
-    if (imagePath != null &&
-        imagePath.isNotEmpty &&
-        imagePath.startsWith('assets/')) {
-      return imagePath;
+double? _readDouble(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      if (parsed != null) return parsed;
     }
-
-    final fallbacks = [
-      'assets/images/pears.jpg',
-      'assets/images/watermelon.jpg',
-      'assets/images/carrots.jpg',
-      'assets/images/mushrooms.jpg',
-      'assets/images/cherries.jpg',
-      'assets/images/radish.jpg',
-    ];
-    return fallbacks[pointsCost.abs() % fallbacks.length];
   }
+  return null;
 }
 
 List<Map<String, dynamic>> _readList(

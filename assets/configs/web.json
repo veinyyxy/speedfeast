@@ -31,7 +31,9 @@
       "deletePaymentMethod" : "/api/payment-methods/delete",
       "setDefaultPaymentMethod" : "/api/payment-methods/default",
       "rewardsSummary" : "/api/rewards/summary",
-      "rewardsTransactions" : "/api/rewards/transactions"
+      "rewardsTransactions" : "/api/rewards/transactions",
+      "rewardsRedemptions" : "/api/rewards/redemptions",
+      "rewardsRedeem" : "/api/rewards/redeem"
 
     }
   }

@@ -11,6 +11,21 @@ bool _asBool(dynamic value) {
   return value?.toString().toLowerCase() == 'true';
 }
 
+String _asText(dynamic value) => value?.toString().trim() ?? '';
+
+double _asDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int _asInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
 class DeliveryAddressSummary {
   final String id;
   final String receiverName;
@@ -97,6 +112,63 @@ class DeliveryAddressSummary {
   }
 }
 
+class RewardRedemptionSummary {
+  final String id;
+  final String title;
+  final int pointsCost;
+  final double discountAmount;
+  final String currency;
+  final String expiresAt;
+
+  const RewardRedemptionSummary({
+    required this.id,
+    required this.title,
+    required this.pointsCost,
+    required this.discountAmount,
+    required this.currency,
+    required this.expiresAt,
+  });
+
+  factory RewardRedemptionSummary.fromJson(Map<String, dynamic> json) {
+    final reward = json['reward'] is Map
+        ? Map<String, dynamic>.from(json['reward'] as Map)
+        : <String, dynamic>{};
+    final title = _asText(reward['title']).isNotEmpty
+        ? _asText(reward['title'])
+        : _asText(json['title']).isNotEmpty
+        ? _asText(json['title'])
+        : 'Reward Voucher';
+    final pointsCost = _asInt(json['points_cost'] ?? json['pointsCost']);
+    final discountAmount = _asDouble(
+      json['discount_amount'] ?? json['discountAmount'],
+    );
+
+    return RewardRedemptionSummary(
+      id: _asText(json['redemption_id'] ?? json['redemptionId'] ?? json['id']),
+      title: title,
+      pointsCost: pointsCost,
+      discountAmount: discountAmount <= 0 ? pointsCost / 100 : discountAmount,
+      currency: _asText(json['currency']).isEmpty
+          ? 'CAD'
+          : _asText(json['currency']),
+      expiresAt: _asText(json['expires_at'] ?? json['expiresAt']),
+    );
+  }
+
+  String get discountLabel =>
+      '${currency.toUpperCase()} \$${discountAmount.toStringAsFixed(2)} off';
+
+  String get expiresLabel {
+    if (expiresAt.isEmpty) return 'No expiry set';
+    final parsed = DateTime.tryParse(expiresAt);
+    if (parsed == null) return 'Expires $expiresAt';
+    final local = parsed.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return 'Expires ${local.year}-$month-$day';
+  }
+}
+
 void main() {
   runApp(const MyApp());
 }
@@ -138,8 +210,11 @@ class _OrderPageState extends State<OrderPage> {
   DateTime? _scheduledDeliveryTime;
   bool _isSubmittingOrder = false;
   bool _isLoadingDeliveryAddresses = false;
+  bool _isLoadingRewardRedemptions = false;
   List<DeliveryAddressSummary> _deliveryAddresses = [];
+  List<RewardRedemptionSummary> _activeRewardRedemptions = [];
   DeliveryAddressSummary? _selectedDeliveryAddress;
+  RewardRedemptionSummary? _selectedRewardRedemption;
   String _customerName = '';
   String _customerContact = '';
 
@@ -159,6 +234,7 @@ class _OrderPageState extends State<OrderPage> {
           setState(() => _deliveryMode = DeliveryMode.dineIn);
         }
         _loadDeliveryAddresses();
+        _loadRewardRedemptions();
       }
     });
   }
@@ -261,11 +337,146 @@ class _OrderPageState extends State<OrderPage> {
     });
   }
 
+  Future<void> _loadRewardRedemptions() async {
+    final serviceProvider = context.read<ServiceProvider>();
+    if (!serviceProvider.isLoggedIn) {
+      setState(() {
+        _activeRewardRedemptions = [];
+        _selectedRewardRedemption = null;
+        _isLoadingRewardRedemptions = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoadingRewardRedemptions = true);
+    final response = await serviceProvider.fetchRewardRedemptions();
+    if (!mounted) return;
+
+    final redemptions = (response?['redemptions'] as List? ?? [])
+        .whereType<Map>()
+        .map(
+          (item) =>
+              RewardRedemptionSummary.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .where((item) => item.id.isNotEmpty && item.discountAmount > 0)
+        .toList(growable: false);
+    final selectedId = _selectedRewardRedemption?.id ?? '';
+    RewardRedemptionSummary? selected;
+    for (final redemption in redemptions) {
+      if (redemption.id == selectedId) {
+        selected = redemption;
+        break;
+      }
+    }
+
+    setState(() {
+      _activeRewardRedemptions = redemptions;
+      _selectedRewardRedemption = selected;
+      _isLoadingRewardRedemptions = false;
+    });
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showRewardPicker() async {
+    await _loadRewardRedemptions();
+    if (!mounted) return;
+
+    final selected = await showModalBottomSheet<RewardRedemptionSummary?>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        final bottomPadding = MediaQuery.of(sheetContext).padding.bottom;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 10, 18, 18 + bottomPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Choose Reward',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (_activeRewardRedemptions.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'No active reward vouchers available.',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _activeRewardRedemptions.length,
+                      separatorBuilder: (context, index) =>
+                          Divider(color: Colors.grey.shade200),
+                      itemBuilder: (context, index) {
+                        final redemption = _activeRewardRedemptions[index];
+                        final isSelected =
+                            redemption.id == _selectedRewardRedemption?.id;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          title: Text(redemption.title),
+                          subtitle: Text(
+                            '${redemption.discountLabel} • ${redemption.expiresLabel}',
+                          ),
+                          trailing: Text('${redemption.pointsCost} pts'),
+                          onTap: () => Navigator.pop(sheetContext, redemption),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext, null),
+                    child: const Text('No reward'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _selectedRewardRedemption = selected);
   }
 
   Future<void> _openAddressManagement() async {
@@ -508,12 +719,22 @@ class _OrderPageState extends State<OrderPage> {
     return 0.0;
   }
 
-  double get total {
+  double get totalBeforeRewards {
     if (_deliveryMode == DeliveryMode.delivery) {
       return subtotal + deliveryFee + deliveryServiceFee + taxes + tipAmount;
     }
     return subtotal + taxes + tipAmount;
   }
+
+  double get rewardDiscount {
+    final selected = _selectedRewardRedemption;
+    if (selected == null) return 0;
+    return selected.discountAmount.clamp(0, totalBeforeRewards).toDouble();
+  }
+
+  double get total => (totalBeforeRewards - rewardDiscount)
+      .clamp(0, double.infinity)
+      .toDouble();
 
   String get _fulfillmentTypeForRequest {
     switch (_deliveryMode) {
@@ -715,6 +936,7 @@ class _OrderPageState extends State<OrderPage> {
         deliveryNote: _deliveryNoteForRequest,
         shippingAddressId: _shippingAddressIdForRequest,
         shippingAddress: _shippingAddressForRequest,
+        rewardRedemptionId: _selectedRewardRedemption?.id,
         tipAmount: tipAmount,
       );
 
@@ -964,6 +1186,8 @@ class _OrderPageState extends State<OrderPage> {
               ),
             ),
             const SizedBox(height: 20),
+            _buildRewardSection(),
+            const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
@@ -1014,6 +1238,11 @@ class _OrderPageState extends State<OrderPage> {
                     'Tip',
                     'CAD \$${tipAmount.toStringAsFixed(2)}',
                   ),
+                  if (rewardDiscount > 0)
+                    _buildPriceRow(
+                      'Reward Discount',
+                      '-CAD \$${rewardDiscount.toStringAsFixed(2)}',
+                    ),
                   const Divider(height: 30, thickness: 1, color: Colors.grey),
                   _buildPriceRow(
                     'Total',
@@ -1079,6 +1308,107 @@ class _OrderPageState extends State<OrderPage> {
       child: Icon(
         address.isDefault ? Icons.home_outlined : Icons.location_on_outlined,
         color: primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildRewardSection() {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final selected = _selectedRewardRedemption;
+    final hasRewards = _activeRewardRedemptions.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: primaryColor.withAlpha(18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.local_offer_outlined, color: primaryColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Rewards',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  if (_isLoadingRewardRedemptions)
+                    Text(
+                      'Loading reward vouchers...',
+                      style: TextStyle(color: Colors.grey.shade700),
+                    )
+                  else if (selected != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selected.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${selected.discountLabel} applied',
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      hasRewards
+                          ? 'Choose a voucher for this order.'
+                          : 'No active reward vouchers available.',
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _isLoadingRewardRedemptions
+                      ? null
+                      : _showRewardPicker,
+                  child: Text(selected == null ? 'Choose' : 'Change'),
+                ),
+                if (selected != null)
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _selectedRewardRedemption = null),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey.shade700,
+                      minimumSize: const Size(0, 30),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Remove'),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

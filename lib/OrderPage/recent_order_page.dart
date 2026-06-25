@@ -308,6 +308,14 @@ class _OrderCard extends StatelessWidget {
                 label: order.fulfillmentLabel,
               ),
             ],
+            if (order.rewardDiscount > 0) ...[
+              const SizedBox(height: 8),
+              _InfoLine(
+                icon: Icons.local_offer_outlined,
+                label:
+                    'Reward: -CAD \$${order.rewardDiscount.toStringAsFixed(2)}',
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -421,6 +429,12 @@ class _OrderDetailsSheet extends StatelessWidget {
             _DetailRow(label: 'Date', value: order.dateLabel),
             _DetailRow(label: 'Fulfillment', value: order.fulfillmentLabel),
             _DetailRow(label: 'Payment Method', value: order.paymentMethod),
+            if (order.rewardDiscount > 0)
+              _DetailRow(
+                label: 'Reward Discount',
+                value:
+                    '-CAD \$${order.rewardDiscount.toStringAsFixed(2)}${order.rewardTitle.isEmpty ? '' : ' (${order.rewardTitle})'}',
+              ),
             _DetailRow(
               label: 'Estimated Delivery',
               value: order.estimatedDelivery,
@@ -749,6 +763,8 @@ class RecentOrder {
     required this.shippingAddress,
     required this.paymentMethod,
     required this.paymentStatus,
+    required this.rewardDiscount,
+    required this.rewardTitle,
     required this.estimatedDelivery,
     required this.actualDelivery,
     required this.items,
@@ -766,6 +782,8 @@ class RecentOrder {
   final String shippingAddress;
   final String paymentMethod;
   final String paymentStatus;
+  final double rewardDiscount;
+  final String rewardTitle;
   final String estimatedDelivery;
   final String actualDelivery;
   final List<RecentOrderItem> items;
@@ -818,6 +836,30 @@ class RecentOrder {
     final reviewValue = _firstValue(json, const ['review', 'order_review']);
     final reviewMap = reviewValue is Map
         ? reviewValue.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final fulfillmentValue = _firstValue(json, const [
+      'fulfillment_detail',
+      'fulfillmentDetail',
+    ]);
+    final fulfillmentMap = fulfillmentValue is Map
+        ? fulfillmentValue.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final pricingValue =
+        _firstValue(json, const ['pricing']) ?? fulfillmentMap['pricing'];
+    final pricingMap = pricingValue is Map
+        ? pricingValue.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
+    final rewardValue =
+        _firstValue(json, const ['reward', 'reward_redemption']) ??
+        fulfillmentMap['reward'];
+    final rewardMap = rewardValue is Map
+        ? rewardValue.map<String, dynamic>(
             (key, value) => MapEntry(key.toString(), value),
           )
         : const <String, dynamic>{};
@@ -878,6 +920,11 @@ class RecentOrder {
           'status',
         ]),
       ),
+      rewardDiscount: _firstDouble(pricingMap, const [
+        'reward_discount',
+        'rewardDiscount',
+      ]),
+      rewardTitle: _firstString(rewardMap, const ['title', 'name']),
       estimatedDelivery: _formatDate(
         _firstValue(json, const [
           'estimated_delivery',

@@ -604,6 +604,7 @@ class ServiceProvider with ChangeNotifier {
     Map<String, dynamic>? shippingAddress,
     String? shippingAddressId,
     String? paymentMethodId,
+    String? rewardRedemptionId,
     double tipAmount = 0,
   }) async {
     if (_config == null) {
@@ -677,6 +678,8 @@ class ServiceProvider with ChangeNotifier {
       if (shippingAddress != null) 'shipping_address': shippingAddress,
       if (paymentMethodId != null && paymentMethodId.isNotEmpty)
         'payment_method_id': paymentMethodId,
+      if (rewardRedemptionId != null && rewardRedemptionId.isNotEmpty)
+        'reward_redemption_id': rewardRedemptionId,
       if (tableNumber != null && tableNumber.isNotEmpty)
         'table_number': tableNumber,
       if (dineInTableId != null && dineInTableId.isNotEmpty)
@@ -957,6 +960,131 @@ class ServiceProvider with ChangeNotifier {
         'An unexpected error occurred while fetching rewards transactions: $e',
       );
       debugPrint('Fetch rewards transactions stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchRewardRedemptions({
+    String status = 'active',
+  }) async {
+    if (_config == null) {
+      _lastRewardsError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for fetchRewardRedemptions.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastRewardsError = 'Please log in to view rewards.';
+      debugPrint('Cannot fetch reward redemptions: user token is missing.');
+      return null;
+    }
+
+    try {
+      _lastRewardsError = null;
+      final queryParameters = <String, dynamic>{};
+      if (status.trim().isNotEmpty) {
+        queryParameters['status'] = status.trim();
+      }
+      final rawResponse = await _apiService.get(
+        _config!.getRewardsRedemptionsPath(),
+        queryParameters: queryParameters.isEmpty ? null : queryParameters,
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) return responseData;
+
+        _lastRewardsError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated reward vouchers could not be loaded.';
+        debugPrint(
+          'Server indicated reward redemptions failure: $_lastRewardsError',
+        );
+        return null;
+      }
+
+      _lastRewardsError = 'Unexpected response while loading reward vouchers.';
+      return null;
+    } on AppException catch (e) {
+      _lastRewardsError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error fetching reward redemptions: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastRewardsError = 'Failed to load reward vouchers.';
+      debugPrint(
+        'An unexpected error occurred while fetching reward redemptions: $e',
+      );
+      debugPrint('Fetch reward redemptions stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> redeemReward(String rewardId) async {
+    final normalizedRewardId = rewardId.trim();
+    if (_config == null) {
+      _lastRewardsError = 'Service config is not loaded.';
+      debugPrint('Config not loaded yet for redeemReward.');
+      return null;
+    }
+    if (_userToken == null || _userToken!.isEmpty) {
+      _lastRewardsError = 'Please log in to redeem rewards.';
+      debugPrint('Cannot redeem reward: user token is missing.');
+      return null;
+    }
+    if (normalizedRewardId.isEmpty) {
+      _lastRewardsError = 'Reward id is missing.';
+      debugPrint('Cannot redeem reward: reward id is missing.');
+      return null;
+    }
+
+    try {
+      _lastRewardsError = null;
+      final rawResponse = await _apiService.post(
+        _config!.getRewardsRedeemPath(),
+        <String, dynamic>{'reward_id': normalizedRewardId},
+        token: _userToken,
+      );
+
+      if (rawResponse is Map) {
+        final responseData = _asStringKeyedMap(rawResponse);
+        if (responseData['success'] == true) {
+          notifyListeners();
+          return responseData;
+        }
+
+        _lastRewardsError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Server indicated this reward could not be redeemed.';
+        debugPrint(
+          'Server indicated reward redeem failure: $_lastRewardsError',
+        );
+        return null;
+      }
+
+      _lastRewardsError = 'Unexpected response while redeeming reward.';
+      return null;
+    } on AppException catch (e) {
+      _lastRewardsError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error redeeming reward: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _lastRewardsError = 'Failed to redeem reward.';
+      debugPrint('An unexpected error occurred while redeeming reward: $e');
+      debugPrint('Redeem reward stack trace: $stackTrace');
       return null;
     }
   }

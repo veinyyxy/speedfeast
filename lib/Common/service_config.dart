@@ -79,6 +79,14 @@ class ServiceConfig {
     return '$name:$port${getRewardsTransactionsPath()}';
   }
 
+  String getRewardsRedemptionsUrl() {
+    return '$name:$port${getRewardsRedemptionsPath()}';
+  }
+
+  String getRewardsRedeemUrl() {
+    return '$name:$port${getRewardsRedeemPath()}';
+  }
+
   String getOrderReviewUrl(String orderId) {
     return '$name:$port${getOrderReviewPath(orderId)}';
   }
@@ -118,6 +126,10 @@ class ServiceConfig {
       _path('rewardsSummary', '/api/rewards/summary');
   String getRewardsTransactionsPath() =>
       _path('rewardsTransactions', '/api/rewards/transactions');
+  String getRewardsRedemptionsPath() =>
+      _path('rewardsRedemptions', '/api/rewards/redemptions');
+  String getRewardsRedeemPath() =>
+      _path('rewardsRedeem', '/api/rewards/redeem');
   String getOrderReviewBasePath() =>
       _path('orderReview', '/api/reviews/orders');
   String getOrderReviewPath(String orderId) =>

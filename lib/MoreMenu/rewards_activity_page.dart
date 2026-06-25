@@ -28,7 +28,11 @@ class _RewardsActivityPageState extends State<RewardsActivityPage> {
   Future<_RewardsActivityData> _fetchActivity() async {
     final serviceProvider = context.read<ServiceProvider>();
     final response = await serviceProvider.fetchRewardsTransactions();
-    return _RewardsActivityData.fromJson(response ?? <String, dynamic>{});
+    final redemptionsResponse = await serviceProvider.fetchRewardRedemptions();
+    return _RewardsActivityData.fromJson(
+      response ?? <String, dynamic>{},
+      redemptionsResponse ?? <String, dynamic>{},
+    );
   }
 
   Future<void> _reloadActivity() async {
@@ -118,6 +122,31 @@ class _RewardsActivityPageState extends State<RewardsActivityPage> {
               _RewardsSummaryCard(account: data.account),
               const SizedBox(height: 16),
               Text(
+                'My Rewards',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              if (data.redemptions.isEmpty)
+                const _EmptyRewardsCard()
+              else
+                SizedBox(
+                  height: 126,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: data.redemptions.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      return _RewardRedemptionCard(
+                        redemption: data.redemptions[index],
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text(
                 'Activity',
                 style: Theme.of(
                   context,
@@ -145,6 +174,107 @@ class _RewardsActivityPageState extends State<RewardsActivityPage> {
       message: 'Rewards activity is linked to your SpeedFeast account.',
       buttonLabel: 'Sign In',
       onPressed: _showLoginDialog,
+    );
+  }
+}
+
+class _RewardRedemptionCard extends StatelessWidget {
+  const _RewardRedemptionCard({required this.redemption});
+
+  final _RewardRedemption redemption;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return SizedBox(
+      width: 210,
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: primaryColor.withAlpha(12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.local_offer_outlined, color: primaryColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      redemption.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                redemption.discountLabel,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              Text(
+                redemption.expiryLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${redemption.pointsCost} pts redeemed',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyRewardsCard extends StatelessWidget {
+  const _EmptyRewardsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(
+              Icons.local_offer_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Redeemed vouchers will appear here.',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -451,30 +581,46 @@ class _ScrollableStateMessage extends StatelessWidget {
 
 class _RewardsActivityData {
   final _RewardsAccount account;
+  final List<_RewardRedemption> redemptions;
   final List<_RewardsTransaction> transactions;
 
   const _RewardsActivityData({
     required this.account,
+    required this.redemptions,
     required this.transactions,
   });
 
   factory _RewardsActivityData.empty() {
     return _RewardsActivityData(
       account: _RewardsAccount.empty(),
+      redemptions: const [],
       transactions: const [],
     );
   }
 
-  factory _RewardsActivityData.fromJson(Map<String, dynamic> json) {
+  factory _RewardsActivityData.fromJson(
+    Map<String, dynamic> json,
+    Map<String, dynamic> redemptionsJson,
+  ) {
     final accountJson = json['account'] is Map
         ? Map<String, dynamic>.from(json['account'] as Map)
         : <String, dynamic>{};
     final transactionsJson = json['transactions'] is List
         ? json['transactions'] as List
         : const [];
+    final redemptionList = redemptionsJson['redemptions'] is List
+        ? redemptionsJson['redemptions'] as List
+        : const [];
 
     return _RewardsActivityData(
       account: _RewardsAccount.fromJson(accountJson),
+      redemptions: redemptionList
+          .whereType<Map>()
+          .map(
+            (item) =>
+                _RewardRedemption.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
       transactions: transactionsJson
           .whereType<Map>()
           .map(
@@ -483,6 +629,62 @@ class _RewardsActivityData {
           )
           .toList(growable: false),
     );
+  }
+}
+
+class _RewardRedemption {
+  final String id;
+  final String title;
+  final int pointsCost;
+  final double discountAmount;
+  final String currency;
+  final String status;
+  final String expiresAt;
+
+  const _RewardRedemption({
+    required this.id,
+    required this.title,
+    required this.pointsCost,
+    required this.discountAmount,
+    required this.currency,
+    required this.status,
+    required this.expiresAt,
+  });
+
+  factory _RewardRedemption.fromJson(Map<String, dynamic> json) {
+    final reward = json['reward'] is Map
+        ? Map<String, dynamic>.from(json['reward'] as Map)
+        : <String, dynamic>{};
+    final pointsCost = _readInt(json, const ['points_cost', 'pointsCost']);
+    final discountAmount = _readDouble(json, const [
+      'discount_amount',
+      'discountAmount',
+    ]);
+    final rewardTitle = _readString(reward, const ['title', 'name']);
+
+    return _RewardRedemption(
+      id: _readString(json, const ['redemption_id', 'redemptionId', 'id']),
+      title: rewardTitle.isNotEmpty
+          ? rewardTitle
+          : _readString(json, const ['title', 'name']),
+      pointsCost: pointsCost,
+      discountAmount: discountAmount <= 0 ? pointsCost / 100 : discountAmount,
+      currency: _readString(json, const ['currency']).isEmpty
+          ? 'CAD'
+          : _readString(json, const ['currency']),
+      status: _readString(json, const ['status']),
+      expiresAt: _readString(json, const ['expires_at', 'expiresAt']),
+    );
+  }
+
+  String get discountLabel {
+    return '${currency.toUpperCase()} \$${discountAmount.toStringAsFixed(2)} off';
+  }
+
+  String get expiryLabel {
+    final date = _formatDate(expiresAt);
+    if (date.isEmpty) return _titleCase(status);
+    return 'Expires $date';
   }
 }
 
@@ -631,6 +833,20 @@ int _readInt(Map<String, dynamic> json, List<String> keys) {
     if (value is num) return value.round();
     if (value is String) {
       final parsed = int.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+  }
+  return 0;
+}
+
+double _readDouble(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
       if (parsed != null) return parsed;
     }
   }
