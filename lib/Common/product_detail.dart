@@ -1189,64 +1189,116 @@ class _ProductDetailState extends State<ProductDetail> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            _quantityButton(
-              icon: Icons.remove,
-              enabled: _quantity > 1,
-              onTap: () => _setQuantity(_quantity - 1),
-            ),
-            SizedBox(
-              width: 44,
-              child: Center(
-                child: Text(
-                  '$_quantity',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-            _quantityButton(
-              icon: Icons.add,
-              enabled: true,
-              onTap: () => _setQuantity(_quantity + 1),
-            ),
-            const Spacer(),
-            Text(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 430;
+            final price = Text(
               _formatPrice(_finalPrice),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(width: 12),
-            FilledButton(
-              onPressed: () => widget.onAddToOrder?.call(
-                ProductDetailOrderData(
-                  quantity: _quantity,
-                  unitPrice: _unitPrice,
-                  totalPrice: _finalPrice,
-                  selections: _selectedOptions,
-                  specialInstructions: _specialInstructions.trim(),
+            );
+
+            if (compact) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      _buildQuantitySelector(compact: true),
+                      const Spacer(),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: price,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildAddToOrderButton(),
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                _buildQuantitySelector(),
+                const Spacer(),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: price,
+                  ),
                 ),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: const Text(
-                'Add to order',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-            ),
-          ],
+                const SizedBox(width: 12),
+                _buildAddToOrderButton(),
+              ],
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuantitySelector({bool compact = false}) {
+    final buttonSize = compact ? 48.0 : 58.0;
+    final iconSize = compact ? 28.0 : 32.0;
+    final countWidth = compact ? 38.0 : 44.0;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _quantityButton(
+          icon: Icons.remove,
+          enabled: _quantity > 1,
+          size: buttonSize,
+          iconSize: iconSize,
+          onTap: () => _setQuantity(_quantity - 1),
+        ),
+        SizedBox(
+          width: countWidth,
+          child: Center(
+            child: Text(
+              '$_quantity',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ),
+        _quantityButton(
+          icon: Icons.add,
+          enabled: true,
+          size: buttonSize,
+          iconSize: iconSize,
+          onTap: () => _setQuantity(_quantity + 1),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddToOrderButton() {
+    return FilledButton(
+      onPressed: () => widget.onAddToOrder?.call(
+        ProductDetailOrderData(
+          quantity: _quantity,
+          unitPrice: _unitPrice,
+          totalPrice: _finalPrice,
+          selections: _selectedOptions,
+          specialInstructions: _specialInstructions.trim(),
+        ),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+      child: const Text(
+        'Add to order',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -1255,6 +1307,8 @@ class _ProductDetailState extends State<ProductDetail> {
     required IconData icon,
     required bool enabled,
     required VoidCallback onTap,
+    double size = 58,
+    double iconSize = 32,
   }) {
     return Material(
       color: enabled ? Colors.grey.shade100 : Colors.grey.shade50,
@@ -1263,11 +1317,11 @@ class _ProductDetailState extends State<ProductDetail> {
         customBorder: const CircleBorder(),
         onTap: enabled ? onTap : null,
         child: SizedBox(
-          width: 58,
-          height: 58,
+          width: size,
+          height: size,
           child: Icon(
             icon,
-            size: 32,
+            size: iconSize,
             color: enabled ? Colors.black : Colors.grey.shade400,
           ),
         ),

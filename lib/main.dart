@@ -20,7 +20,7 @@ import 'RegisterPage/base_info_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // 加载 .env 文件
-  await dotenv.load(fileName: "configs/.env");
+  await dotenv.load(fileName: "assets/configs/.env");
 
   final serviceProvider = ServiceProvider();
   await serviceProvider.initialize();

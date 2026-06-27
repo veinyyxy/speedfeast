@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'expandable_cart_button.dart'; // 确保这个文件存在
 
-class ProductCard2 extends StatelessWidget {
+class ProductCard2 extends StatefulWidget {
   final String id;
   final String name;
   final String price;
@@ -32,24 +32,106 @@ class ProductCard2 extends StatelessWidget {
   });
 
   @override
+  State<ProductCard2> createState() => _ProductCard2State();
+}
+
+class _ProductCard2State extends State<ProductCard2> {
+  bool _imageFailed = false;
+
+  @override
+  void didUpdateWidget(covariant ProductCard2 oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _imageFailed = false;
+    }
+  }
+
+  bool get _canTryImage {
+    final source = widget.imageUrl?.trim() ?? '';
+    if (source.isEmpty) return false;
+    if (source.startsWith('assets/')) return true;
+
+    final uri = Uri.tryParse(source);
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+  }
+
+  void _hideImageAfterError() {
+    if (_imageFailed) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _imageFailed = true);
+      }
+    });
+  }
+
+  Widget _buildProductImage(double imageOpacity) {
+    final source = widget.imageUrl!.trim();
+
+    Widget image;
+    if (source.startsWith('assets/')) {
+      image = Image.asset(
+        source,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          _hideImageAfterError();
+          return const SizedBox.shrink();
+        },
+      );
+    } else {
+      image = Image.network(
+        source,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          _hideImageAfterError();
+          return const SizedBox.shrink();
+        },
+      );
+    }
+
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+      clipBehavior: Clip.antiAlias,
+      child: Opacity(opacity: imageOpacity, child: image),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 检查 imageUrl 是否有效（不为 null 且不为空）
-    final bool hasValidImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final showImage = _canTryImage && !_imageFailed;
     final colorScheme = Theme.of(context).colorScheme;
-    final titleColor = isAvailable
+    final titleColor = widget.isAvailable
         ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.46);
-    final secondaryColor = isAvailable
+    final secondaryColor = widget.isAvailable
         ? Colors.grey[700]
         : colorScheme.onSurface.withValues(alpha: 0.38);
-    final imageOpacity = isAvailable ? 1.0 : 0.38;
+    final imageOpacity = widget.isAvailable ? 1.0 : 0.38;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Card(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: isAvailable ? null : Colors.grey.shade50,
+        color: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -64,7 +146,7 @@ class ProductCard2 extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          name,
+                          widget.name,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -73,23 +155,23 @@ class ProductCard2 extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          price,
+                          widget.price,
                           style: TextStyle(fontSize: 16, color: secondaryColor),
                         ),
-                        if (ratingCount > 0) ...[
+                        if (widget.ratingCount > 0) ...[
                           const SizedBox(height: 4),
                           Row(
                             children: [
                               Icon(
                                 Icons.star_rounded,
                                 size: 17,
-                                color: isAvailable
+                                color: widget.isAvailable
                                     ? Colors.amber.shade700
                                     : Colors.grey.shade400,
                               ),
                               const SizedBox(width: 3),
                               Text(
-                                '${ratingAverage.toStringAsFixed(1)} ($ratingCount)',
+                                '${widget.ratingAverage.toStringAsFixed(1)} (${widget.ratingCount})',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -102,10 +184,10 @@ class ProductCard2 extends StatelessWidget {
                         const SizedBox(height: 8),
                         Flexible(
                           child: Text(
-                            description,
+                            widget.description,
                             style: TextStyle(
                               fontSize: 14,
-                              color: isAvailable
+                              color: widget.isAvailable
                                   ? Colors.grey[600]
                                   : colorScheme.onSurface.withValues(
                                       alpha: 0.34,
@@ -119,115 +201,58 @@ class ProductCard2 extends StatelessWidget {
                     ),
                   ),
                 ),
-                // 根据 imageUrl 的有效性来显示图片或占位符
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          // 如果没有有效图片，显示一个默认图标
-                          color: hasValidImage
-                              ? Colors.transparent
-                              : Colors.grey[200],
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        // CONDITIONALLY render Image.network or a placeholder
-                        child: Opacity(
-                          opacity: imageOpacity,
-                          child: hasValidImage
-                              ? Image.network(
-                                  imageUrl!, // 确保 URL 不为 null
-                                  fit: BoxFit.cover,
-                                  // 加载构建器：在图片加载时显示进度条
-                                  loadingBuilder:
-                                      (
-                                        BuildContext context,
-                                        Widget child,
-                                        ImageChunkEvent? loadingProgress,
-                                      ) {
-                                        if (loadingProgress == null) {
-                                          return child;
-                                        }
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            value:
-                                                loadingProgress
-                                                        .expectedTotalBytes !=
-                                                    null
-                                                ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
-                                                : null,
-                                          ),
-                                        );
-                                      },
-                                  // 错误构建器：在图片加载失败时显示一个错误图标
-                                  errorBuilder:
-                                      (
-                                        BuildContext context,
-                                        Object error,
-                                        StackTrace? stackTrace,
-                                      ) {
-                                        return const Icon(
-                                          Icons.broken_image,
-                                          size: 50,
-                                          color: Colors.grey,
-                                        );
-                                      },
-                                )
-                              : const Icon(
-                                  Icons.image_not_supported,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ), // 当 imageUrl 无效时显示
-                        ),
-                      ),
-                      if (!isAvailable)
-                        Positioned(
-                          left: 6,
-                          right: 6,
-                          bottom: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.68),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              unavailableLabel,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                if (showImage || widget.isAvailable)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16.0),
+                    child: SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          if (showImage) _buildProductImage(imageOpacity),
+                          if (!widget.isAvailable && showImage)
+                            Positioned(
+                              left: 6,
+                              right: 6,
+                              bottom: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.68),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  widget.unavailableLabel,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      if (isAvailable)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: ExpandableCartButton(
-                            initialCount: initialCount,
-                            onQuantityChanged: onQuantityChanged,
-                            heroTagPrefix: name,
-                          ),
-                        ),
-                    ],
+                          if (widget.isAvailable)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: ExpandableCartButton(
+                                initialCount: widget.initialCount,
+                                onQuantityChanged: widget.onQuantityChanged,
+                                heroTagPrefix: widget.name,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),

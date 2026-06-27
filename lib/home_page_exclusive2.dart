@@ -56,6 +56,7 @@ class _HomePageState extends State<HomePage> {
       _dynamicSliverWidgets.add(const SizedBox(height: 16));
 
       if (initData != null) {
+        var hasRenderedCategory = false;
         // 遍历 initData 的每个键值对，键是分类名，值是产品列表
         initData.forEach((categoryName, productListDynamic) {
           if (productListDynamic is List) {
@@ -75,6 +76,9 @@ class _HomePageState extends State<HomePage> {
                 );
               }
             }
+            if (hasRenderedCategory) {
+              _dynamicSliverWidgets.add(const _CategorySectionDivider());
+            }
             // 添加 ProductCategoryList 到动态列表
             _dynamicSliverWidgets.add(
               ProductCategoryList(
@@ -82,9 +86,12 @@ class _HomePageState extends State<HomePage> {
                 items: items,
               ),
             );
-            _dynamicSliverWidgets.add(const SizedBox(height: 16));
+            hasRenderedCategory = true;
           }
         });
+        if (hasRenderedCategory) {
+          _dynamicSliverWidgets.add(const SizedBox(height: 16));
+        }
       } else {
         _dynamicSliverWidgets.add(const Text("未能加载产品分类数据或数据格式不正确."));
       }
@@ -633,6 +640,30 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CategorySectionDivider extends StatelessWidget {
+  const _CategorySectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final lineColor = primaryColor.withValues(alpha: 0.12);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.04),
+          border: Border(
+            top: BorderSide(color: lineColor),
+            bottom: BorderSide(color: lineColor),
+          ),
+        ),
+        child: const SizedBox(width: double.infinity, height: 8),
       ),
     );
   }
