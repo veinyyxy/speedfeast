@@ -17,6 +17,83 @@ class ProductCategoryList extends StatelessWidget {
     this.storeName = 'SpeedFeast Restaurant',
   });
 
+  Widget _buildCategoryHeader(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final itemLabel = items.length == 1 ? '1 item' : '${items.length} items';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.055),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.10)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      categoryName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.14),
+                      ),
+                    ),
+                    child: Text(
+                      itemLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: primaryColor.withValues(alpha: 0.22),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openProductDetail(BuildContext context, Product2ItemData item) {
     if (!item.isAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -109,18 +186,21 @@ class ProductCategoryList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Text(
-            categoryName,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
+        _buildCategoryHeader(context),
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: items.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
+          separatorBuilder: (context, index) {
+            final primaryColor = Theme.of(context).colorScheme.primary;
+            return Divider(
+              height: 1,
+              thickness: 1,
+              indent: 16,
+              endIndent: 16,
+              color: primaryColor.withValues(alpha: 0.22),
+            );
+          },
           itemBuilder: (context, index) {
             final item = items[index];
             final serviceProvider = context.watch<ServiceProvider>();

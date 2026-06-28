@@ -37,6 +37,7 @@ class ServiceProvider with ChangeNotifier {
   String? _lastReviewError;
   String? _lastDineInError;
   String? _lastLoginError;
+  String _selectedFulfillmentType = 'delivery';
   Map<String, dynamic>? _dineInTableContext;
   late ApiService _apiService;
 
@@ -51,6 +52,7 @@ class ServiceProvider with ChangeNotifier {
   String? get lastReviewError => _lastReviewError;
   String? get lastDineInError => _lastDineInError;
   String? get lastLoginError => _lastLoginError;
+  String get selectedFulfillmentType => _selectedFulfillmentType;
   Map<String, dynamic>? get dineInTableContext => _dineInTableContext == null
       ? null
       : Map<String, dynamic>.from(_dineInTableContext!);
@@ -529,6 +531,22 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedFulfillmentType(String fulfillmentType) {
+    final normalized = fulfillmentType.trim().toLowerCase().replaceAll(
+      '-',
+      '_',
+    );
+    final nextType = switch (normalized) {
+      'dine_in' => 'dine_in',
+      'takeout' || 'take_out' => 'takeout',
+      _ => 'delivery',
+    };
+
+    if (_selectedFulfillmentType == nextType) return;
+    _selectedFulfillmentType = nextType;
+    notifyListeners();
+  }
+
   Future<Map<String, dynamic>?> verifyDineInTable(String qrCode) async {
     final rawCode = qrCode.trim();
     if (_config == null) {
@@ -569,6 +587,7 @@ class ServiceProvider with ChangeNotifier {
           }
 
           _dineInTableContext = table;
+          _selectedFulfillmentType = 'dine_in';
           notifyListeners();
           return table;
         }

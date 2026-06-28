@@ -126,161 +126,250 @@ class _RewardWidgetState extends State<RewardWidget> {
     final progress = targetPoints <= 0
         ? 0.0
         : (summary.availablePoints / targetPoints).clamp(0.0, 1.0);
-    final subtitle = isLoggedIn
-        ? summary.availablePoints >= targetPoints && summary.rewards.isNotEmpty
-              ? 'You have rewards ready to use'
-              : 'Unlock more items at $targetPoints pts'
-        : 'Sign in to earn points after completed orders';
+    final pointsToNext = (targetPoints - summary.availablePoints).clamp(
+      0,
+      targetPoints,
+    );
+    final progressText = isLoggedIn
+        ? pointsToNext == 0
+              ? 'Reward ready'
+              : '$pointsToNext pts to next reward'
+        : 'Sign in to earn rewards';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Card(
-        color: primaryColor.withAlpha(18),
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                primaryColor.withValues(alpha: 0.08),
+                primaryColor.withValues(alpha: 0.02),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: primaryColor.withValues(alpha: 0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InkWell(
+                  onTap: isLoading
+                      ? null
+                      : () => setState(() => _isExpanded = !_isExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                    child: Column(
                       children: [
-                        SizedBox(
-                          width: 32,
-                          height: 32,
-                          child: isLoading
-                              ? CircularProgressIndicator(
-                                  strokeWidth: 4,
-                                  color: primaryColor,
-                                )
-                              : CircularProgressIndicator(
-                                  value: progress,
-                                  strokeWidth: 7,
-                                  backgroundColor: Colors.grey[300],
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    primaryColor,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 58,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.emoji_events_outlined,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            SizedBox(
+                              width: 104,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Rewards',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF1F2937),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 4),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      '${summary.availablePoints} pts',
+                                      style: TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w900,
+                                        color: primaryColor,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: LinearProgressIndicator(
+                                      value: isLoading ? null : progress,
+                                      minHeight: 10,
+                                      backgroundColor: primaryColor.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    progressText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              width: 54,
+                              height: 54,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.card_giftcard_rounded,
+                                color: primaryColor,
+                                size: 28,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          summary.availablePoints.toString(),
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.bold,
-                            height: 1,
+                        if (serviceProvider.lastRewardsError != null &&
+                            isLoggedIn) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            serviceProvider.lastRewardsError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'pts',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        ],
+                        const SizedBox(height: 2),
+                        Icon(
+                          _isExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: primaryColor,
+                          size: 28,
                         ),
                       ],
                     ),
                   ),
-                  Image.asset(
-                    'assets/images/long.jpeg',
-                    height: 46,
-                    width: 78,
-                    fit: BoxFit.contain,
+                ),
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    child: !isLoggedIn
+                        ? _SignInRewardsSection(
+                            primaryColor: primaryColor,
+                            onSignIn: () async {
+                              final rewardsProvider = serviceProvider;
+                              final signedIn = await showLoginDialog(
+                                context,
+                                reason: LoginPromptReason.account,
+                              );
+                              if (signedIn == true && mounted) {
+                                _refresh(rewardsProvider);
+                              }
+                            },
+                          )
+                        : _RewardsSection(
+                            rewards: summary.rewards,
+                            availablePoints: summary.availablePoints,
+                            redeemingRewardId: _redeemingRewardId,
+                            onRedeem: (reward) =>
+                                _confirmRedeem(serviceProvider, reward),
+                            onRefresh: () => _refresh(serviceProvider),
+                            onHide: () {
+                              setState(() {
+                                _isExpanded = false;
+                              });
+                            },
+                          ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(color: Colors.grey[700], fontSize: 13),
-              ),
-              if (serviceProvider.lastRewardsError != null && isLoggedIn) ...[
-                const SizedBox(height: 6),
-                Text(
-                  serviceProvider.lastRewardsError!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontSize: 12,
-                  ),
+                  crossFadeState: _isExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 180),
                 ),
               ],
-              const SizedBox(height: 8),
-              if (!isLoggedIn)
-                ElevatedButton(
-                  onPressed: () async {
-                    final rewardsProvider = serviceProvider;
-                    final signedIn = await showLoginDialog(
-                      context,
-                      reason: LoginPromptReason.account,
-                    );
-                    if (signedIn == true && mounted) {
-                      _refresh(rewardsProvider);
-                    }
-                  },
-                  style: _primaryButtonStyle(primaryColor),
-                  child: const Text(
-                    'Sign in for Rewards',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                )
-              else if (!_isExpanded)
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          setState(() {
-                            _isExpanded = true;
-                          });
-                        },
-                  style: _primaryButtonStyle(primaryColor),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text(
-                        'Explore Rewards',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ),
-              if (isLoggedIn && _isExpanded)
-                _RewardsSection(
-                  rewards: summary.rewards,
-                  availablePoints: summary.availablePoints,
-                  redeemingRewardId: _redeemingRewardId,
-                  onRedeem: (reward) => _confirmRedeem(serviceProvider, reward),
-                  onRefresh: () => _refresh(serviceProvider),
-                  onHide: () {
-                    setState(() {
-                      _isExpanded = false;
-                    });
-                  },
-                ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+}
 
-  ButtonStyle _primaryButtonStyle(Color primaryColor) {
-    return ElevatedButton.styleFrom(
-      backgroundColor: primaryColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-      minimumSize: const Size(0, 36),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+class _SignInRewardsSection extends StatelessWidget {
+  const _SignInRewardsSection({
+    required this.primaryColor,
+    required this.onSignIn,
+  });
+
+  final Color primaryColor;
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Divider(height: 16, color: primaryColor.withValues(alpha: 0.16)),
+        Text(
+          'Sign in to earn points after completed orders.',
+          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: onSignIn,
+          style: FilledButton.styleFrom(
+            backgroundColor: primaryColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text('Sign in for Rewards'),
+        ),
+      ],
     );
   }
 }

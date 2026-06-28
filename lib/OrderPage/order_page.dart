@@ -269,9 +269,17 @@ class _OrderPageState extends State<OrderPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final serviceProvider = context.read<ServiceProvider>();
-        if (serviceProvider.hasDineInTableContext) {
-          setState(() => _deliveryMode = DeliveryMode.dineIn);
+        final initialMode = serviceProvider.hasDineInTableContext
+            ? DeliveryMode.dineIn
+            : _deliveryModeFromFulfillmentType(
+                serviceProvider.selectedFulfillmentType,
+              );
+        if (_deliveryMode != initialMode) {
+          setState(() => _deliveryMode = initialMode);
         }
+        serviceProvider.setSelectedFulfillmentType(
+          _fulfillmentTypeForDeliveryMode(initialMode),
+        );
         _loadDeliveryAddresses();
         _loadRewardRedemptions();
       }
@@ -283,6 +291,38 @@ class _OrderPageState extends State<OrderPage> {
     _customTipController.removeListener(_updateCustomTip);
     _customTipController.dispose();
     super.dispose();
+  }
+
+  DeliveryMode _deliveryModeFromFulfillmentType(String fulfillmentType) {
+    switch (fulfillmentType.trim().toLowerCase().replaceAll('-', '_')) {
+      case 'dine_in':
+        return DeliveryMode.dineIn;
+      case 'takeout':
+      case 'take_out':
+        return DeliveryMode.takeout;
+      default:
+        return DeliveryMode.delivery;
+    }
+  }
+
+  String _fulfillmentTypeForDeliveryMode(DeliveryMode mode) {
+    switch (mode) {
+      case DeliveryMode.delivery:
+        return 'delivery';
+      case DeliveryMode.dineIn:
+        return 'dine_in';
+      case DeliveryMode.takeout:
+        return 'takeout';
+    }
+  }
+
+  void _setDeliveryMode(DeliveryMode mode) {
+    if (_deliveryMode != mode) {
+      setState(() => _deliveryMode = mode);
+    }
+    context.read<ServiceProvider>().setSelectedFulfillmentType(
+      _fulfillmentTypeForDeliveryMode(mode),
+    );
   }
 
   DeliveryAddressSummary? _findDeliveryAddress(
@@ -1534,7 +1574,7 @@ class _OrderPageState extends State<OrderPage> {
 
     return Expanded(
       child: ElevatedButton(
-        onPressed: () => setState(() => _deliveryMode = mode),
+        onPressed: () => _setDeliveryMode(mode),
         style: ElevatedButton.styleFrom(
           backgroundColor: isSelected ? primaryColor : Colors.grey[200],
           foregroundColor: isSelected ? Colors.white : Colors.black87,
@@ -1879,7 +1919,7 @@ class _OrderPageState extends State<OrderPage> {
                     '/dine_in_scan',
                   );
                   if (mounted && scanned == true) {
-                    setState(() => _deliveryMode = DeliveryMode.dineIn);
+                    _setDeliveryMode(DeliveryMode.dineIn);
                   }
                 },
                 icon: const Icon(Icons.qr_code_scanner),

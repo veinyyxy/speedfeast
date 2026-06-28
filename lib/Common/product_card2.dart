@@ -154,34 +154,6 @@ class _ProductCard2State extends State<ProductCard2> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          widget.price,
-                          style: TextStyle(fontSize: 16, color: secondaryColor),
-                        ),
-                        if (widget.ratingCount > 0) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.star_rounded,
-                                size: 17,
-                                color: widget.isAvailable
-                                    ? Colors.amber.shade700
-                                    : Colors.grey.shade400,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                '${widget.ratingAverage.toStringAsFixed(1)} (${widget.ratingCount})',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: secondaryColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 8),
                         Flexible(
                           child: Text(
                             widget.description,
@@ -196,6 +168,44 @@ class _ProductCard2State extends State<ProductCard2> {
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                widget.price,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: secondaryColor,
+                                ),
+                              ),
+                            ),
+                            if (widget.ratingCount > 0) ...[
+                              const SizedBox(width: 10),
+                              Icon(
+                                Icons.star_rounded,
+                                size: 17,
+                                color: widget.isAvailable
+                                    ? Colors.amber.shade700
+                                    : Colors.grey.shade400,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${widget.ratingAverage.toStringAsFixed(1)} (${widget.ratingCount})',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: secondaryColor,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),

@@ -16,7 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late ScrollController _scrollController;
-  Color _appBarColor = Colors.transparent;
+  Color _appBarColor = Colors.white;
   int _selectedIndex = 0;
 
   // 购物车按钮位置
@@ -31,10 +31,18 @@ class _HomePageState extends State<HomePage> {
       '630 Guelph Street, Winnipeg, MB, Canada';
   static const String _restaurantPostalCode = 'R3M 3B2';
   static const String _restaurantPhone = '+1 (204) 555-0138';
+  static const String _restaurantStatus = 'Open now · Pickup 15-20 min';
   static const bool _showSearchButton = false;
-  static const double _cartFabWidth = 96;
-  static const double _cartFabHeight = 56;
+  static const double _cartFabWidth = 148;
+  static const double _cartFabHeight = 58;
   static const double _cartFabMargin = 16;
+  static const double _homeSectionGap = 8;
+  static const double _homeHeaderExpandedHeight = 190;
+  static const List<String> _fulfillmentOptions = [
+    'Delivery',
+    'Dine-in',
+    'Takeout',
+  ];
 
   @override
   void initState() {
@@ -53,7 +61,6 @@ class _HomePageState extends State<HomePage> {
       final Map<String, dynamic>? initData = serviceProvider.initData;
 
       _dynamicSliverWidgets.add(RewardWidget());
-      _dynamicSliverWidgets.add(const SizedBox(height: 16));
 
       if (initData != null) {
         var hasRenderedCategory = false;
@@ -147,13 +154,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scrollListener() {
-    const scrollThreshold = 200.0 - kToolbarHeight;
-    double offset = _scrollController.offset;
-    double opacity = (offset / scrollThreshold).clamp(0.0, 1.0);
-
-    setState(() {
-      _appBarColor = Color.fromARGB((255 * opacity).round(), 255, 255, 255);
-    });
+    if (_appBarColor == Colors.white) return;
+    setState(() => _appBarColor = Colors.white);
   }
 
   void _showAboutUsDialog() {
@@ -406,12 +408,187 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildHomeHeaderBackground(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Colors.white),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 68, 16, _homeSectionGap),
+          child: Column(
+            children: [
+              _buildRestaurantStatusStrip(colorScheme),
+              const SizedBox(height: _homeSectionGap),
+              _buildFulfillmentSelector(colorScheme),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRestaurantStatusStrip(ColorScheme colorScheme) {
+    return Material(
+      color: colorScheme.primary.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _showAboutUsDialog,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.storefront_outlined,
+                  color: colorScheme.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      _restaurantName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF21A663),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _restaurantStatus,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.info_outline,
+                color: colorScheme.primary.withValues(alpha: 0.85),
+                size: 21,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFulfillmentSelector(ColorScheme colorScheme) {
+    final selectedFulfillmentType = context
+        .watch<ServiceProvider>()
+        .selectedFulfillmentType;
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: List.generate(_fulfillmentOptions.length, (index) {
+          final label = _fulfillmentOptions[index];
+          final fulfillmentType = _fulfillmentTypeForLabel(label);
+          return Expanded(
+            child: _buildFulfillmentOption(
+              label: label,
+              isSelected: selectedFulfillmentType == fulfillmentType,
+              colorScheme: colorScheme,
+              onTap: () => context
+                  .read<ServiceProvider>()
+                  .setSelectedFulfillmentType(fulfillmentType),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  String _fulfillmentTypeForLabel(String label) {
+    switch (label.toLowerCase()) {
+      case 'dine-in':
+        return 'dine_in';
+      case 'takeout':
+        return 'takeout';
+      default:
+        return 'delivery';
+    }
+  }
+
+  Widget _buildFulfillmentOption({
+    required String label,
+    required bool isSelected,
+    required ColorScheme colorScheme,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: isSelected ? colorScheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Center(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.black87,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final isLoggedIn = context.watch<ServiceProvider>().isLoggedIn;
-    final cartCount = context.watch<ServiceProvider>().cartCount;
-    final useDarkAppBarText = _appBarColor.computeLuminance() > 0.5;
+    final serviceProvider = context.watch<ServiceProvider>();
+    final isLoggedIn = serviceProvider.isLoggedIn;
+    final cartCount = serviceProvider.cartCount;
+    final cartSubtotal = serviceProvider.cartSubtotal;
     final cartFabPosition = _effectiveFabPosition(context);
 
     return Scaffold(
@@ -427,27 +604,31 @@ class _HomePageState extends State<HomePage> {
                       ? Brightness.dark
                       : Brightness.light,
                 ),
-                expandedHeight: 200.0,
-                shadowColor: Colors.black,
+                expandedHeight: _homeHeaderExpandedHeight,
+                toolbarHeight: 64,
+                surfaceTintColor: Colors.white,
+                shadowColor: Colors.black12,
                 floating: false,
                 pinned: true,
-                elevation: 4.0,
-                forceElevated: true,
-                leading: Image.asset('assets/images/log.png'),
-                title: const Text(
-                  'SpeedFeast',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                elevation: 0,
+                forceElevated: false,
+                automaticallyImplyLeading: false,
+                leadingWidth: 190,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
+                  child: Image.asset(
+                    'assets/icons/SpeedFeast_main.png',
+                    fit: BoxFit.contain,
+                    alignment: Alignment.centerLeft,
                   ),
                 ),
+                titleSpacing: 0,
                 actions: <Widget>[
                   _buildAccountStatusChip(
                     isLoggedIn: isLoggedIn,
-                    useDarkText: useDarkAppBarText,
+                    useDarkText: true,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 12),
                   if (_showSearchButton)
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -465,80 +646,9 @@ class _HomePageState extends State<HomePage> {
                         tooltip: 'Search',
                       ),
                     ),
-                  Container(
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 8.0,
-                    ).copyWith(right: 8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.info_outline, color: Colors.white),
-                      onPressed: _showAboutUsDialog,
-                      tooltip: 'About us',
-                    ),
-                  ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      Image.asset('assets/images/sushi.jpg', fit: BoxFit.cover),
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black45],
-                            stops: [0.5, 1.0],
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 16.0,
-                        left: 16.0,
-                        right: 16.0,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const <Widget>[
-                            Text(
-                              'Welcome to SpeedFeast Restaurant',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22.0,
-                                fontWeight: FontWeight.bold,
-                                shadows: [
-                                  Shadow(
-                                    blurRadius: 3.0,
-                                    color: Colors.black,
-                                    offset: Offset(1.0, 1.0),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: 8.0),
-                            Text(
-                              '体验极速美食与温馨氛围的完美结合，让您的味蕾享受非凡之旅。',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14.0,
-                                shadows: [
-                                  Shadow(
-                                    blurRadius: 3.0,
-                                    color: Colors.black,
-                                    offset: Offset(1.0, 1.0),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  background: _buildHomeHeaderBackground(context),
                 ),
               ),
               SliverList(
@@ -557,18 +667,10 @@ class _HomePageState extends State<HomePage> {
             child: Draggable(
               feedback: Opacity(
                 opacity: 0.8,
-                child: FloatingActionButton.extended(
-                  onPressed: null,
-                  backgroundColor: primaryColor,
-                  icon: const Icon(Icons.shopping_cart, color: Colors.white),
-                  label: Text(
-                    '$cartCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                child: _CartFloatingButton(
+                  primaryColor: primaryColor,
+                  cartCount: cartCount,
+                  cartSubtotal: cartSubtotal,
                 ),
               ),
               childWhenDragging: Container(),
@@ -582,21 +684,13 @@ class _HomePageState extends State<HomePage> {
                   );
                 });
               },
-              child: FloatingActionButton.extended(
-                heroTag: 'draggable_cart_fab',
+              child: _CartFloatingButton(
+                primaryColor: primaryColor,
+                cartCount: cartCount,
+                cartSubtotal: cartSubtotal,
                 onPressed: () {
                   Navigator.pushNamed(context, '/order_page');
                 },
-                backgroundColor: primaryColor,
-                icon: const Icon(Icons.shopping_cart, color: Colors.white),
-                label: Text(
-                  '$cartCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
               ),
             ),
           ),
@@ -664,6 +758,119 @@ class _CategorySectionDivider extends StatelessWidget {
           ),
         ),
         child: const SizedBox(width: double.infinity, height: 8),
+      ),
+    );
+  }
+}
+
+class _CartFloatingButton extends StatelessWidget {
+  const _CartFloatingButton({
+    required this.primaryColor,
+    required this.cartCount,
+    required this.cartSubtotal,
+    this.onPressed,
+  });
+
+  final Color primaryColor;
+  final int cartCount;
+  final double cartSubtotal;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final countLabel = cartCount > 99 ? '99+' : cartCount.toString();
+
+    return SizedBox(
+      width: _HomePageState._cartFabWidth,
+      height: _HomePageState._cartFabHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Material(
+              color: primaryColor,
+              elevation: 6,
+              shadowColor: primaryColor.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(999),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: onPressed,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 16, 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Positioned(
+                              left: 0,
+                              bottom: 3,
+                              child: Icon(
+                                Icons.shopping_cart_outlined,
+                                color: Colors.white,
+                                size: 25,
+                              ),
+                            ),
+                            Positioned(
+                              right: -2,
+                              top: -4,
+                              child: _CartCountBadge(label: countLabel),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'CAD \$${cartSubtotal.toStringAsFixed(2)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartCountBadge extends StatelessWidget {
+  const _CartCountBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red.shade600,
+        border: Border.all(color: Colors.white, width: 2),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          height: 1.05,
+        ),
       ),
     );
   }
