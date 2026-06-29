@@ -574,7 +574,7 @@ class _ProductDetailState extends State<ProductDetail> {
                     _buildStoreRow(),
                     if (widget.recommendations.isNotEmpty)
                       _buildRecommendations(),
-                    const Divider(height: 10, thickness: 6),
+                    const SizedBox(height: 8),
                     for (final group in widget.optionGroups) _buildGroup(group),
                     _buildSpecialInstructions(),
                     const SizedBox(height: 120),
@@ -784,37 +784,65 @@ class _ProductDetailState extends State<ProductDetail> {
   }
 
   Widget _buildStoreRow() {
-    return Column(
-      children: [
-        Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.055),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.10)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.storefront_outlined, size: 28),
+                child: Icon(
+                  Icons.storefront_outlined,
+                  size: 24,
+                  color: primaryColor,
+                ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  widget.storeName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.storeName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Kitchen',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
-      ],
+      ),
     );
   }
 
@@ -859,75 +887,95 @@ class _ProductDetailState extends State<ProductDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                group.title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
+        _buildOptionGroupHeader(group),
+        for (final option in group.options)
+          _buildOptionRow(group, option, externalSetState),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildOptionGroupHeader(ProductDetailOptionGroup group) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final ruleText =
+        '${group.isRequired ? 'Required' : 'Optional'} · ${group.ruleText}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.055),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.10)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+              child: Row(
                 children: [
-                  if (group.isRequired) ...[
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.amber.shade800,
-                      size: 17,
+                  Container(
+                    width: 4,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Required',
-                      style: TextStyle(
-                        color: Colors.amber.shade900,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ] else
-                    Text(
-                      'Optional',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: Text(
-                      '•',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
+                      group.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                        color: Color(0xFF1F2937),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 10),
                   Flexible(
-                    child: Text(
-                      group.ruleText,
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                    flex: 0,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 170),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: primaryColor.withValues(alpha: 0.14),
+                        ),
+                      ),
+                      child: Text(
+                        ruleText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: group.isRequired
+                              ? Colors.amber.shade900
+                              : Colors.grey.shade700,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            Container(
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: primaryColor.withValues(alpha: 0.22),
+            ),
+          ],
         ),
-        for (final option in group.options)
-          _buildOptionRow(group, option, externalSetState),
-        Divider(height: 10, thickness: 6, color: Colors.grey.shade100),
-      ],
+      ),
     );
   }
 
@@ -938,6 +986,7 @@ class _ProductDetailState extends State<ProductDetail> {
   ) {
     final selected = _selectedByGroup[group.id]?.contains(option.id) ?? false;
     final isSingle = group.selectionType == ProductOptionSelectionType.single;
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return InkWell(
       onTap: () {
@@ -951,7 +1000,9 @@ class _ProductDetailState extends State<ProductDetail> {
         height: 76,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+          border: Border(
+            bottom: BorderSide(color: primaryColor.withValues(alpha: 0.22)),
+          ),
         ),
         child: Row(
           children: [
@@ -966,7 +1017,7 @@ class _ProductDetailState extends State<ProductDetail> {
                           ? Icons.check_box
                           : Icons.check_box_outline_blank),
                 size: 30,
-                color: selected ? Colors.black : Colors.grey.shade900,
+                color: selected ? primaryColor : Colors.grey.shade900,
               ),
             ),
             const SizedBox(width: 8),
@@ -1103,6 +1154,7 @@ class _ProductDetailState extends State<ProductDetail> {
 
   Widget _buildSpecialInstructions() {
     final hasInstructions = _specialInstructions.trim().isNotEmpty;
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -1110,7 +1162,7 @@ class _ProductDetailState extends State<ProductDetail> {
         children: [
           Center(
             child: Material(
-              color: Colors.grey.shade100,
+              color: primaryColor.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(24),
               child: InkWell(
                 borderRadius: BorderRadius.circular(24),
@@ -1123,15 +1175,20 @@ class _ProductDetailState extends State<ProductDetail> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.chat_bubble_outline, size: 18),
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 18,
+                        color: primaryColor,
+                      ),
                       const SizedBox(width: 7),
                       Text(
                         hasInstructions
                             ? 'Edit special instructions'
                             : 'Special instructions',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
+                          color: primaryColor,
                         ),
                       ),
                     ],
@@ -1146,9 +1203,9 @@ class _ProductDetailState extends State<ProductDetail> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: primaryColor.withValues(alpha: 0.035),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: primaryColor.withValues(alpha: 0.18)),
               ),
               child: Text(
                 _specialInstructions,

@@ -592,6 +592,7 @@ class _HomePageState extends State<HomePage> {
     final cartFabPosition = _effectiveFabPosition(context);
 
     return Scaffold(
+      extendBody: true,
       body: Stack(
         children: [
           CustomScrollView(
@@ -696,43 +697,58 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              spreadRadius: 2,
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+      bottomNavigationBar: ColoredBox(
+        color: Colors.white.withValues(alpha: 0.5),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Theme.of(
-            context,
-          ).bottomNavigationBarTheme.selectedItemColor,
-          unselectedItemColor: Theme.of(
-            context,
-          ).bottomNavigationBarTheme.unselectedItemColor,
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_bag),
-              label: 'Order',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
+                backgroundColor: Colors.white,
+                elevation: 0,
+                selectedItemColor: Theme.of(
+                  context,
+                ).bottomNavigationBarTheme.selectedItemColor,
+                unselectedItemColor: Theme.of(
+                  context,
+                ).bottomNavigationBarTheme.unselectedItemColor,
+                currentIndex: _selectedIndex,
+                onTap: _onItemTapped,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home),
+                    label: 'Home',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.shopping_bag),
+                    label: 'Order',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.qr_code_scanner),
+                    label: 'Scan',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.more_horiz),
+                    label: 'More',
+                  ),
+                ],
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.qr_code_scanner),
-              label: 'Scan',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.more_horiz),
-              label: 'More',
-            ),
-          ],
+          ),
         ),
       ),
     );

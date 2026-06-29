@@ -1208,7 +1208,9 @@ class _OrderPageState extends State<OrderPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.18),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -2006,6 +2008,7 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   Widget _buildOrderItem(OrderItem item) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final isUnavailable = !item.isAvailable;
     final statusMessage = isUnavailable
         ? (item.availabilityMessage.isEmpty
@@ -2015,14 +2018,24 @@ class _OrderPageState extends State<OrderPage> {
         ? item.availabilityMessage
         : '';
 
-    return Card(
-      elevation: 0,
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        side: isUnavailable
-            ? BorderSide(color: Colors.red.shade200)
-            : BorderSide.none,
+        border: Border.all(
+          color: isUnavailable
+              ? Colors.red.shade200
+              : primaryColor.withValues(alpha: 0.18),
+          width: isUnavailable ? 1.2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
