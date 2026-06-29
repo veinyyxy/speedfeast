@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Common/order_item.dart';
 import '../Common/payment_redirect.dart';
+import '../Common/product_category_list.dart';
+import '../Common/product_detail.dart';
 import '../Controller/service_provider.dart';
 import '../MoreMenu/more_my_account_personal_info.dart';
 import '../RegisterPage/phone_login_page.dart';
@@ -241,6 +243,7 @@ class _OrderPageState extends State<OrderPage> {
   double _tipPercentage = 0;
   double _customTip = 0.0;
   final TextEditingController _customTipController = TextEditingController();
+  final TextEditingController _orderNoteController = TextEditingController();
 
   bool _isAddItemButtonPressed = false;
   bool _showCustomTipInput = false;
@@ -256,7 +259,11 @@ class _OrderPageState extends State<OrderPage> {
   RewardRedemptionSummary? _selectedRewardRedemption;
   String _customerName = '';
   String _customerContact = '';
+  String _orderNote = '';
 
+  static const String _storeName = 'SpeedFeast Restaurant';
+  static const bool _showFishAlertWarning = false;
+  static const bool _showSupplyChainShortageWarning = false;
   static const int _businessOpenHour = 9;
   static const int _businessOpenMinute = 0;
   static const int _businessCloseHour = 22;
@@ -290,6 +297,7 @@ class _OrderPageState extends State<OrderPage> {
   void dispose() {
     _customTipController.removeListener(_updateCustomTip);
     _customTipController.dispose();
+    _orderNoteController.dispose();
     super.dispose();
   }
 
@@ -784,8 +792,290 @@ class _OrderPageState extends State<OrderPage> {
     });
   }
 
+  String? get _orderNoteForRequest {
+    final note = _orderNote.trim();
+    return note.isEmpty ? null : note;
+  }
+
+  Future<void> _showOrderNoteSheet() async {
+    _orderNoteController.text = _orderNote;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+        final primaryColor = Theme.of(sheetContext).colorScheme.primary;
+
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Order Note',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Add instructions for the whole order.',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _orderNoteController,
+                  autofocus: true,
+                  minLines: 3,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
+                  decoration: InputDecoration(
+                    hintText: 'Example: Please pack sauces separately.',
+                    filled: true,
+                    fillColor: primaryColor.withValues(alpha: 0.045),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: primaryColor.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: primaryColor.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: primaryColor, width: 1.4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _orderNote = '';
+                          _orderNoteController.clear();
+                        });
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Clear'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () {
+                        setState(() {
+                          _orderNote = _orderNoteController.text.trim();
+                        });
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Save Note'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _updateQuantity(String id, int delta) {
     context.read<ServiceProvider>().updateQuantity(id, delta);
+  }
+
+  Product2ItemData? _productForOrderItem(OrderItem item) {
+    final serviceProvider = context.read<ServiceProvider>();
+    final productData = serviceProvider.productDataForId(item.productId);
+    if (productData == null) return null;
+
+    return Product2ItemData.fromJson(
+      productData,
+      imageRoot: serviceProvider.fetchImageRoot(),
+    );
+  }
+
+  String _cartItemIdForDetailOrder(
+    Product2ItemData product,
+    ProductDetailOrderData orderData,
+  ) {
+    final optionParts =
+        orderData.selections.entries
+            .where((entry) => entry.value.isNotEmpty)
+            .map((entry) {
+              final values = entry.value.toList()..sort();
+              return '${entry.key}:${values.join(",")}';
+            })
+            .toList()
+          ..sort();
+    final optionsKey = optionParts.join('|');
+    final specialInstructions = orderData.specialInstructions.trim();
+    final specialInstructionsKey = specialInstructions.isEmpty
+        ? ''
+        : 'note:${Uri.encodeComponent(specialInstructions)}';
+    final itemKeyParts = [
+      if (optionsKey.isNotEmpty) optionsKey,
+      if (specialInstructionsKey.isNotEmpty) specialInstructionsKey,
+    ];
+
+    return itemKeyParts.isEmpty
+        ? product.id
+        : '${product.id}|${itemKeyParts.join("|")}';
+  }
+
+  OrderItem _orderItemFromDetailOrder(
+    Product2ItemData product,
+    ProductDetailOrderData orderData,
+  ) {
+    final specialInstructions = orderData.specialInstructions.trim();
+
+    return OrderItem(
+      id: _cartItemIdForDetailOrder(product, orderData),
+      productId: product.id,
+      name: product.name,
+      quantity: orderData.quantity,
+      price: orderData.unitPrice,
+      imagePath: product.imageUrl ?? 'assets/images/hamberger2.jpg',
+      description: product.description,
+      selectedOptions: orderData.selections,
+      specialInstructions: specialInstructions,
+    );
+  }
+
+  Future<void> _editOrderItem(OrderItem item) async {
+    final product = _productForOrderItem(item);
+    if (product == null) {
+      _showSnackBar('This product is no longer available for editing.');
+      return;
+    }
+
+    if (!product.isAvailable) {
+      _showSnackBar('${product.name} is currently unavailable.');
+      return;
+    }
+
+    final serviceProvider = context.read<ServiceProvider>();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (detailContext) => ProductDetail(
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          storeName: _storeName,
+          imageProvider: product.resolveImageProvider(),
+          basePrice: product.basePrice,
+          ratingAverage: product.ratingAverage,
+          ratingCount: product.ratingCount,
+          initialQuantity: item.quantity,
+          initialSelections: item.selectedOptions,
+          initialSpecialInstructions: item.specialInstructions,
+          actionButtonLabel: 'Update item',
+          optionGroups: product.optionGroups,
+          onAddToOrder: (orderData) {
+            final updatedItem = _orderItemFromDetailOrder(product, orderData);
+            serviceProvider.replaceCartItem(item.id, updatedItem);
+            Navigator.of(detailContext).pop();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Updated ${product.name} in your order.'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _selectedOptionsLabel(OrderItem item) {
+    final selectedOptions = item.selectedOptions;
+    if (!selectedOptions.values.any((values) => values.isNotEmpty)) {
+      return '';
+    }
+
+    final product = _productForOrderItem(item);
+    if (product == null || product.optionGroups.isEmpty) {
+      return selectedOptions.entries
+          .where((entry) => entry.value.isNotEmpty)
+          .map((entry) => '${entry.key}: ${entry.value.join(", ")}')
+          .join(' · ');
+    }
+
+    final labels = _selectedOptionLabelsFromGroups(
+      product.optionGroups,
+      selectedOptions,
+    );
+    if (labels.isNotEmpty) return labels.join(' · ');
+
+    return selectedOptions.entries
+        .where((entry) => entry.value.isNotEmpty)
+        .map((entry) => '${entry.key}: ${entry.value.join(", ")}')
+        .join(' · ');
+  }
+
+  List<String> _selectedOptionLabelsFromGroups(
+    List<ProductDetailOptionGroup> groups,
+    Map<String, List<String>> selectedOptions,
+  ) {
+    final labels = <String>[];
+
+    for (final group in groups) {
+      final selectedIds = selectedOptions[group.id] ?? const <String>[];
+      final optionLabels = <String>[];
+      for (final selectedId in selectedIds) {
+        final option = _findOptionById(group.options, selectedId);
+        if (option == null) continue;
+        optionLabels.add(_formatSelectedOption(option));
+      }
+      if (optionLabels.isNotEmpty) {
+        labels.add('${group.title}: ${optionLabels.join(", ")}');
+      }
+
+      for (final option in group.options) {
+        labels.addAll(
+          _selectedOptionLabelsFromGroups(option.childGroups, selectedOptions),
+        );
+      }
+    }
+
+    return labels;
+  }
+
+  ProductDetailOption? _findOptionById(
+    List<ProductDetailOption> options,
+    String optionId,
+  ) {
+    for (final option in options) {
+      if (option.id == optionId) return option;
+    }
+    return null;
+  }
+
+  String _formatSelectedOption(ProductDetailOption option) {
+    if (option.extraPrice <= 0) return option.title;
+    return '${option.title} (+CA\$${option.extraPrice.toStringAsFixed(2)})';
   }
 
   double get subtotal => context.read<ServiceProvider>().cartSubtotal;
@@ -828,6 +1118,17 @@ class _OrderPageState extends State<OrderPage> {
         return 'dine_in';
       case DeliveryMode.takeout:
         return 'takeout';
+    }
+  }
+
+  String get _tipExplanation {
+    switch (_deliveryMode) {
+      case DeliveryMode.delivery:
+        return '100% goes to your delivery driver.';
+      case DeliveryMode.dineIn:
+        return '100% goes to the restaurant team serving your table.';
+      case DeliveryMode.takeout:
+        return '100% goes to the restaurant team preparing your pickup order.';
     }
   }
 
@@ -1018,6 +1319,7 @@ class _OrderPageState extends State<OrderPage> {
             ? '630 Guelph Street, Winnipeg, MB, Canada, R3M 3B2'
             : null,
         deliveryNote: _deliveryNoteForRequest,
+        orderNote: _orderNoteForRequest,
         shippingAddressId: _shippingAddressIdForRequest,
         shippingAddress: _shippingAddressForRequest,
         rewardRedemptionId: _selectedRewardRedemption?.id,
@@ -1026,6 +1328,10 @@ class _OrderPageState extends State<OrderPage> {
 
       if (!mounted) return;
       if (response != null) {
+        setState(() {
+          _orderNote = '';
+          _orderNoteController.clear();
+        });
         final orderId = response['order']?['order_id']?.toString() ?? '';
         if (orderId.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1146,40 +1452,41 @@ class _OrderPageState extends State<OrderPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            Container(
-              color: Colors.red[100],
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12.0,
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Fish Alert',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[700],
+            if (_showFishAlertWarning)
+              Container(
+                color: Colors.red[100],
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fish Alert',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[700],
+                            ),
                           ),
-                        ),
-                        Text(
-                          'During this time, our food may contain or come in contact with fish.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red[700],
+                          Text(
+                            'During this time, our food may contain or come in contact with fish.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red[700],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: 10),
             _buildOrderModeSection(),
             Padding(
@@ -1231,46 +1538,51 @@ class _OrderPageState extends State<OrderPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Supply Chain Shortages',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          Text(
-                            'Some ingredients and items may be unavailable due to delayed shipments or shortages.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
+            if (_showSupplyChainShortageWarning) ...[
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Container(
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.grey[600],
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Supply Chain Shortages',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            Text(
+                              'Some ingredients and items may be unavailable due to delayed shipments or shortages.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 20),
             _buildRewardSection(),
             const SizedBox(height: 20),
@@ -1284,7 +1596,7 @@ class _OrderPageState extends State<OrderPage> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   Text(
-                    '100% goes to your delivery driver.',
+                    _tipExplanation,
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 10),
@@ -1300,6 +1612,8 @@ class _OrderPageState extends State<OrderPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            _buildOrderNoteSection(),
             const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -2017,6 +2331,7 @@ class _OrderPageState extends State<OrderPage> {
         : item.priceChanged
         ? item.availabilityMessage
         : '';
+    final selectedOptionsLabel = _selectedOptionsLabel(item);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -2037,151 +2352,195 @@ class _OrderPageState extends State<OrderPage> {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: item.resolveImageProvider(),
-                  fit: BoxFit.cover,
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _editOrderItem(item),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: item.resolveImageProvider(),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${item.quantity}x ${item.name}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  if (item.description.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        item.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${item.quantity}x ${item.name}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                  if (item.selectedOptions.values.any(
-                    (values) => values.isNotEmpty,
-                  ))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        item.selectedOptions.entries
-                            .where((entry) => entry.value.isNotEmpty)
-                            .map(
-                              (entry) =>
-                                  '${entry.key}: ${entry.value.join(", ")}',
-                            )
-                            .join(' · '),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                      ),
-                    ),
-                  if (item.specialInstructions.trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        'Note: ${item.specialInstructions.trim()}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                      ),
-                    ),
-                  TextButton(
-                    onPressed: () => _updateQuantity(item.id, -item.quantity),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Remove',
-                      style: TextStyle(
-                        color: isUnavailable
-                            ? Colors.red.shade700
-                            : Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  if (statusMessage.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            isUnavailable
-                                ? Icons.error_outline
-                                : Icons.info_outline,
-                            size: 14,
-                            color: isUnavailable
-                                ? Colors.red.shade700
-                                : Colors.orange.shade800,
+                      if (item.description.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            item.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Unit price: CAD \$${item.price.toStringAsFixed(2)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: primaryColor.withValues(alpha: 0.86),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (selectedOptionsLabel.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            selectedOptionsLabel,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      if (item.specialInstructions.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Note: ${item.specialInstructions.trim()}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => _editOrderItem(item),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             child: Text(
-                              statusMessage,
+                              'Edit',
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          TextButton(
+                            onPressed: () =>
+                                _updateQuantity(item.id, -item.quantity),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Remove',
                               style: TextStyle(
                                 color: isUnavailable
                                     ? Colors.red.shade700
-                                    : Colors.orange.shade800,
+                                    : Colors.grey[600],
                                 fontSize: 12,
                               ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                ],
-              ),
+                      if (statusMessage.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                isUnavailable
+                                    ? Icons.error_outline
+                                    : Icons.info_outline,
+                                size: 14,
+                                color: isUnavailable
+                                    ? Colors.red.shade700
+                                    : Colors.orange.shade800,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  statusMessage,
+                                  style: TextStyle(
+                                    color: isUnavailable
+                                        ? Colors.red.shade700
+                                        : Colors.orange.shade800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Text(
+                  isUnavailable
+                      ? 'Unavailable'
+                      : 'CAD \$${(item.quantity * item.price).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isUnavailable ? Colors.red.shade700 : Colors.black,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (isUnavailable)
+                  Icon(Icons.block, color: Colors.red.shade700)
+                else
+                  Row(
+                    children: [
+                      _buildQuantityButton(
+                        Icons.remove,
+                        () => _updateQuantity(item.id, -1),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: Text(
+                          '${item.quantity}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      _buildQuantityButton(
+                        Icons.add,
+                        () => _updateQuantity(item.id, 1),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-            Text(
-              isUnavailable
-                  ? 'Unavailable'
-                  : 'CAD \$${(item.quantity * item.price).toStringAsFixed(2)}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isUnavailable ? Colors.red.shade700 : Colors.black,
-              ),
-            ),
-            const SizedBox(width: 12),
-            if (isUnavailable)
-              Icon(Icons.block, color: Colors.red.shade700)
-            else
-              Row(
-                children: [
-                  _buildQuantityButton(
-                    Icons.remove,
-                    () => _updateQuantity(item.id, -1),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Text(
-                      '${item.quantity}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  _buildQuantityButton(
-                    Icons.add,
-                    () => _updateQuantity(item.id, 1),
-                  ),
-                ],
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -2228,6 +2587,87 @@ class _OrderPageState extends State<OrderPage> {
         iconSize: 18,
         icon: Icon(icon, color: Colors.grey[700]),
         onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildOrderNoteSection() {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final hasNote = _orderNote.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showOrderNoteSheet,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(14.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: primaryColor.withValues(alpha: 0.18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.025),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.sticky_note_2_outlined,
+                    color: primaryColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasNote ? 'Order Note' : 'Add Note',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        hasNote
+                            ? _orderNote.trim()
+                            : 'Add instructions for the whole order.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  hasNote ? 'Edit' : 'Add',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

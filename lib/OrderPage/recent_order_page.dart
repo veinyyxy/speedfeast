@@ -516,6 +516,7 @@ class _OrderDetailsSheet extends StatelessWidget {
               ),
               _DetailRow(label: 'Delivered', value: order.actualDelivery),
               _DetailRow(label: 'Address', value: order.shippingAddress),
+              _DetailRow(label: 'Order Note', value: order.orderNote),
               if (order.isReviewed)
                 _DetailRow(
                   label: 'Review',
@@ -944,6 +945,7 @@ class RecentOrder {
     required this.rewardTitle,
     required this.estimatedDelivery,
     required this.actualDelivery,
+    required this.orderNote,
     required this.items,
     required this.canReview,
     required this.isReviewed,
@@ -963,6 +965,7 @@ class RecentOrder {
   final String rewardTitle;
   final String estimatedDelivery;
   final String actualDelivery;
+  final String orderNote;
   final List<RecentOrderItem> items;
   final bool canReview;
   final bool isReviewed;
@@ -1115,6 +1118,14 @@ class RecentOrder {
           'actualDelivery',
           'delivered_at',
           'deliveredAt',
+        ]),
+      ),
+      orderNote: _firstString(
+        json,
+        const ['order_note', 'orderNote'],
+        fallback: _firstString(fulfillmentMap, const [
+          'order_note',
+          'orderNote',
         ]),
       ),
       items: items,

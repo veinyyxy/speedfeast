@@ -211,6 +211,9 @@ class ProductDetail extends StatefulWidget {
   final int initialQuantity;
   final List<ProductRecommendation> recommendations;
   final List<ProductDetailOptionGroup> optionGroups;
+  final Map<String, List<String>> initialSelections;
+  final String initialSpecialInstructions;
+  final String actionButtonLabel;
   final ValueChanged<Map<String, List<String>>>? onSelectionChanged;
   final ValueChanged<int>? onQuantityChanged;
   final ValueChanged<ProductRecommendation?>? onRecommendationChanged;
@@ -229,6 +232,9 @@ class ProductDetail extends StatefulWidget {
     this.ratingCount = 0,
     this.initialQuantity = 1,
     this.recommendations = const [],
+    this.initialSelections = const {},
+    this.initialSpecialInstructions = '',
+    this.actionButtonLabel = 'Add to order',
     this.onSelectionChanged,
     this.onQuantityChanged,
     this.onRecommendationChanged,
@@ -253,9 +259,9 @@ class _ProductDetailState extends State<ProductDetail> {
   void initState() {
     super.initState();
     _quantity = widget.initialQuantity < 1 ? 1 : widget.initialQuantity;
-    for (final group in widget.optionGroups) {
-      _selectedByGroup[group.id] = <String>{};
-    }
+    _initializeSelectionState();
+    _specialInstructions = widget.initialSpecialInstructions.trim();
+    _specialInstructionsController.text = _specialInstructions;
     _scrollController.addListener(_handleScroll);
   }
 
@@ -265,6 +271,16 @@ class _ProductDetailState extends State<ProductDetail> {
     if (oldWidget.initialQuantity != widget.initialQuantity &&
         widget.initialQuantity != _quantity) {
       _quantity = widget.initialQuantity < 1 ? 1 : widget.initialQuantity;
+    }
+    if (oldWidget.optionGroups != widget.optionGroups ||
+        oldWidget.initialSelections != widget.initialSelections) {
+      _initializeSelectionState();
+      _syncRecommendationHighlight();
+    }
+    if (oldWidget.initialSpecialInstructions !=
+        widget.initialSpecialInstructions) {
+      _specialInstructions = widget.initialSpecialInstructions.trim();
+      _specialInstructionsController.text = _specialInstructions;
     }
   }
 
@@ -282,6 +298,28 @@ class _ProductDetailState extends State<ProductDetail> {
         _scrollController.hasClients && _scrollController.offset > 190;
     if (shouldShow == _showCompactHeader) return;
     setState(() => _showCompactHeader = shouldShow);
+  }
+
+  void _initializeSelectionState() {
+    _selectedByGroup.clear();
+
+    void addGroup(ProductDetailOptionGroup group) {
+      final initialValues = widget.initialSelections[group.id] ?? const [];
+      _selectedByGroup[group.id] = initialValues
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+
+      for (final option in group.options) {
+        for (final childGroup in option.childGroups) {
+          addGroup(childGroup);
+        }
+      }
+    }
+
+    for (final group in widget.optionGroups) {
+      addGroup(group);
+    }
   }
 
   void _toggleOption(
@@ -1353,8 +1391,8 @@ class _ProductDetailState extends State<ProductDetail> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
-      child: const Text(
-        'Add to order',
+      child: Text(
+        widget.actionButtonLabel,
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
       ),
     );

@@ -486,6 +486,30 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceCartItem(String currentId, OrderItem replacement) {
+    final currentIndex = _cartItems.indexWhere((item) => item.id == currentId);
+    if (currentIndex == -1) {
+      addToCart(replacement);
+      return;
+    }
+
+    _cartItems.removeAt(currentIndex);
+    final existingIndex = _cartItems.indexWhere(
+      (item) => item.id == replacement.id,
+    );
+    if (existingIndex != -1) {
+      _cartItems[existingIndex].quantity += replacement.quantity;
+    } else {
+      final insertIndex = currentIndex > _cartItems.length
+          ? _cartItems.length
+          : currentIndex;
+      _cartItems.insert(insertIndex, replacement);
+    }
+
+    _persistCartForActiveUser();
+    notifyListeners();
+  }
+
   void setCartItemQuantity(OrderItem item, int quantity) {
     final index = _cartItems.indexWhere((i) => i.id == item.id);
     if (quantity <= 0) {
@@ -620,6 +644,7 @@ class ServiceProvider with ChangeNotifier {
     String? tableToken,
     String? pickupLocation,
     String? deliveryNote,
+    String? orderNote,
     Map<String, dynamic>? shippingAddress,
     String? shippingAddressId,
     String? paymentMethodId,
@@ -709,6 +734,7 @@ class ServiceProvider with ChangeNotifier {
         'pickup_location': pickupLocation,
       if (deliveryNote != null && deliveryNote.isNotEmpty)
         'delivery_note': deliveryNote,
+      if (orderNote != null && orderNote.isNotEmpty) 'order_note': orderNote,
     };
 
     try {
@@ -2112,5 +2138,14 @@ class ServiceProvider with ChangeNotifier {
   String fetchImageRoot() {
     if (_config == null) return '';
     return _config!.getImagesRootUrl();
+  }
+
+  Map<String, dynamic>? productDataForId(String productId) {
+    final normalizedId = productId.trim();
+    if (normalizedId.isEmpty) return null;
+
+    final product = _latestProductsById()[normalizedId];
+    if (product == null) return null;
+    return Map<String, dynamic>.from(product);
   }
 }
