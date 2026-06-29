@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'product_card.dart';
 import 'product_card2.dart';
 import 'product_detail.dart';
 import '../Controller/service_provider.dart';
 import 'order_item.dart';
+
+enum ProductListCardLayout { horizontalList, verticalGrid }
+
+// Product list layout switch for testing.
+// horizontalList uses ProductCard2 in a single-column list.
+// verticalGrid uses ProductCard in a multi-column grid.
+const ProductListCardLayout productListCardLayout =
+    //ProductListCardLayout.verticalGrid;
+      ProductListCardLayout.horizontalList;
+const int productListGridColumnCount = 3;
+const double productListGridImageHeight = 104;
+const double productListGridItemHeight = 206;
 
 class ProductCategoryList extends StatelessWidget {
   final String categoryName;
@@ -90,6 +103,177 @@ class ProductCategoryList extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  int get _safeGridColumnCount {
+    if (productListGridColumnCount < 1) return 1;
+    if (productListGridColumnCount > 4) return 4;
+    return productListGridColumnCount;
+  }
+
+  OrderItem _baseOrderItem(Product2ItemData item, int quantity) {
+    return OrderItem(
+      id: item.id,
+      productId: item.id,
+      name: item.name,
+      quantity: quantity,
+      price: item.basePrice,
+      imagePath: item.imageUrl ?? 'assets/images/hamberger2.jpg',
+      description: item.description,
+    );
+  }
+
+  int _cartQuantity(ServiceProvider serviceProvider, Product2ItemData item) {
+    return serviceProvider.cartItems
+        .where((cartItem) => cartItem.productId == item.id)
+        .fold<int>(0, (sum, cartItem) => sum + cartItem.quantity);
+  }
+
+  void _setBaseItemQuantity(
+    ServiceProvider serviceProvider,
+    Product2ItemData item,
+    int count,
+  ) {
+    if (!item.isAvailable) return;
+    serviceProvider.setCartItemQuantity(_baseOrderItem(item, count), count);
+  }
+
+  Widget _buildProductCard2List(BuildContext context) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      separatorBuilder: (context, index) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+        return Divider(
+          height: 1,
+          thickness: 1,
+          indent: 16,
+          endIndent: 16,
+          color: primaryColor.withValues(alpha: 0.22),
+        );
+      },
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final serviceProvider = context.watch<ServiceProvider>();
+        final cartQuantity = _cartQuantity(serviceProvider, item);
+        return ProductCard2(
+          id: item.id,
+          name: item.name,
+          price: item.displayPrice,
+          description: item.description,
+          imageUrl: item.imageUrl,
+          initialCount: cartQuantity,
+          isAvailable: item.isAvailable,
+          unavailableLabel: item.unavailableLabel,
+          ratingAverage: item.ratingAverage,
+          ratingCount: item.ratingCount,
+          onQuantityChanged: (count) =>
+              _setBaseItemQuantity(serviceProvider, item, count),
+          onTap: () => _openProductDetail(context, item),
+        );
+      },
+    );
+  }
+
+  Widget _buildProductCardGrid(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: items.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _safeGridColumnCount,
+          mainAxisExtent: productListGridItemHeight,
+          crossAxisSpacing: 4,
+          mainAxisSpacing: 12,
+        ),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final serviceProvider = context.watch<ServiceProvider>();
+          final cartQuantity = _cartQuantity(serviceProvider, item);
+          final footerColor = item.isAvailable
+              ? Colors.grey.shade800
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+
+          return ProductCard(
+            imagePath: item.imageUrl ?? 'assets/images/hamberger2.jpg',
+            width: double.infinity,
+            height: productListGridImageHeight,
+            framed: false,
+            initialCartCount: cartQuantity,
+            isAvailable: item.isAvailable,
+            unavailableLabel: item.unavailableLabel,
+            onImageTap: () => _openProductDetail(context, item),
+            onQuantityChanged: (count) =>
+                _setBaseItemQuantity(serviceProvider, item, count),
+            descriptions: [
+              TextDescription(
+                item.name,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: item.isAvailable
+                      ? const Color(0xFF1F2937)
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.46),
+                ),
+              ),
+              TextDescription(
+                item.description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: item.isAvailable
+                      ? Colors.grey.shade600
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.34),
+                ),
+              ),
+            ],
+            footer: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.displayPrice,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: footerColor,
+                    ),
+                  ),
+                ),
+                if (item.ratingCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.star_rounded,
+                    size: 15,
+                    color: item.isAvailable
+                        ? Colors.amber.shade700
+                        : Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${item.ratingAverage.toStringAsFixed(1)} (${item.ratingCount})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: footerColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -187,58 +371,10 @@ class ProductCategoryList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildCategoryHeader(context),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          separatorBuilder: (context, index) {
-            final primaryColor = Theme.of(context).colorScheme.primary;
-            return Divider(
-              height: 1,
-              thickness: 1,
-              indent: 16,
-              endIndent: 16,
-              color: primaryColor.withValues(alpha: 0.22),
-            );
-          },
-          itemBuilder: (context, index) {
-            final item = items[index];
-            final serviceProvider = context.watch<ServiceProvider>();
-            final cartQuantity = serviceProvider.cartItems
-                .where((cartItem) => cartItem.productId == item.id)
-                .fold<int>(0, (sum, cartItem) => sum + cartItem.quantity);
-            return ProductCard2(
-              id: item.id,
-              name: item.name,
-              price: item.displayPrice,
-              description: item.description,
-              imageUrl: item.imageUrl,
-              initialCount: cartQuantity,
-              isAvailable: item.isAvailable,
-              unavailableLabel: item.unavailableLabel,
-              ratingAverage: item.ratingAverage,
-              ratingCount: item.ratingCount,
-              onQuantityChanged: (count) {
-                if (!item.isAvailable) {
-                  return;
-                }
-                serviceProvider.setCartItemQuantity(
-                  OrderItem(
-                    id: item.id,
-                    productId: item.id,
-                    name: item.name,
-                    quantity: count,
-                    price: item.basePrice,
-                    imagePath: item.imageUrl ?? 'assets/images/hamberger2.jpg',
-                    description: item.description,
-                  ),
-                  count,
-                );
-              },
-              onTap: () => _openProductDetail(context, item),
-            );
-          },
-        ),
+        if (productListCardLayout == ProductListCardLayout.verticalGrid)
+          _buildProductCardGrid(context)
+        else
+          _buildProductCard2List(context),
       ],
     );
   }
