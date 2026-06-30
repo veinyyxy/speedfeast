@@ -325,7 +325,7 @@ class _OrderCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 _InfoLine(
                   icon: Icons.payments_outlined,
-                  label: 'CAD \$${order.totalAmount.toStringAsFixed(2)}',
+                  label: _formatMoney(order.currency, order.totalAmount),
                 ),
                 if (order.paymentStatusLabel.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -346,7 +346,7 @@ class _OrderCard extends StatelessWidget {
                   _InfoLine(
                     icon: Icons.local_offer_outlined,
                     label:
-                        'Reward: -CAD \$${order.rewardDiscount.toStringAsFixed(2)}',
+                        'Reward: ${_formatMoney(order.currency, -order.rewardDiscount)}',
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -508,7 +508,7 @@ class _OrderDetailsSheet extends StatelessWidget {
                 _DetailRow(
                   label: 'Reward Discount',
                   value:
-                      '-CAD \$${order.rewardDiscount.toStringAsFixed(2)}${order.rewardTitle.isEmpty ? '' : ' (${order.rewardTitle})'}',
+                      '${_formatMoney(order.currency, -order.rewardDiscount)}${order.rewardTitle.isEmpty ? '' : ' (${order.rewardTitle})'}',
                 ),
               _DetailRow(
                 label: 'Estimated Delivery',
@@ -532,34 +532,54 @@ class _OrderDetailsSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: primary.withValues(alpha: 0.18)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 4,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: primary,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Items',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Items',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    Divider(color: dividerColor, height: 1),
+                    const SizedBox(height: 6),
+                    if (order.items.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 7),
+                        child: Text(
+                          'No item details available.',
+                          style: TextStyle(
+                            color: Colors.black.withValues(alpha: 0.60),
+                          ),
+                        ),
+                      )
+                    else
+                      ...order.items.map(
+                        (item) => _OrderItemLine(
+                          item: item,
+                          currency: order.currency,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              if (order.items.isEmpty)
-                Text(
-                  'No item details available.',
-                  style: TextStyle(color: Colors.black.withValues(alpha: 0.60)),
-                )
-              else
-                ...order.items.map((item) => _OrderItemLine(item: item)),
+              const SizedBox(height: 14),
+              _OrderPricingSummary(order: order),
             ],
           ),
         ),
@@ -568,16 +588,150 @@ class _OrderDetailsSheet extends StatelessWidget {
   }
 }
 
-class _OrderItemLine extends StatelessWidget {
-  const _OrderItemLine({required this.item});
+class _OrderPricingSummary extends StatelessWidget {
+  const _OrderPricingSummary({required this.order});
 
-  final RecentOrderItem item;
+  final RecentOrder order;
 
   @override
   Widget build(BuildContext context) {
-    final price = item.price > 0
-        ? 'CAD \$${item.price.toStringAsFixed(2)}'
-        : '';
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final dividerColor = primary.withValues(alpha: 0.22);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: primary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Order Summary',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: dividerColor, height: 1),
+          const SizedBox(height: 6),
+          _PriceSummaryRow(
+            label: 'Subtotal',
+            value: _formatMoney(order.currency, order.subtotal),
+          ),
+          if (order.shouldShowDeliveryFees) ...[
+            _PriceSummaryRow(
+              label: 'Delivery Fee',
+              value: _formatMoney(order.currency, order.deliveryFee),
+            ),
+            _PriceSummaryRow(
+              label: 'Delivery Service Fee',
+              value: _formatMoney(order.currency, order.deliveryServiceFee),
+            ),
+          ],
+          _PriceSummaryRow(
+            label: 'Taxes',
+            value: _formatMoney(order.currency, order.taxes),
+          ),
+          _PriceSummaryRow(
+            label: 'Tip',
+            value: _formatMoney(order.currency, order.tipAmount),
+          ),
+          if (order.rewardDiscount > 0)
+            _PriceSummaryRow(
+              label: order.rewardTitle.isEmpty
+                  ? 'Reward Discount'
+                  : 'Reward Discount (${order.rewardTitle})',
+              value: _formatMoney(order.currency, -order.rewardDiscount),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Divider(color: dividerColor, thickness: 1.2),
+          ),
+          _PriceSummaryRow(
+            label: 'Total',
+            value: _formatMoney(order.currency, order.totalAmount),
+            isTotal: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceSummaryRow extends StatelessWidget {
+  const _PriceSummaryRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: isTotal ? 2 : 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isTotal
+                    ? Colors.black
+                    : Colors.black.withValues(alpha: 0.66),
+                fontSize: isTotal ? 18 : 14,
+                fontWeight: isTotal ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: isTotal ? 18 : 14,
+              fontWeight: isTotal ? FontWeight.w900 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderItemLine extends StatelessWidget {
+  const _OrderItemLine({required this.item, required this.currency});
+
+  final RecentOrderItem item;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final price = item.price > 0 ? _formatMoney(currency, item.price) : '';
     final primary = Theme.of(context).colorScheme.primary;
 
     return Padding(
@@ -935,7 +1089,14 @@ class RecentOrder {
     required this.id,
     required this.status,
     required this.dateLabel,
+    required this.currency,
     required this.totalAmount,
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.deliveryServiceFee,
+    required this.taxes,
+    required this.tipAmount,
+    required this.totalBeforeRewards,
     required this.itemCount,
     required this.fulfillmentType,
     required this.shippingAddress,
@@ -955,7 +1116,14 @@ class RecentOrder {
   final String id;
   final String status;
   final String dateLabel;
+  final String currency;
   final double totalAmount;
+  final double subtotal;
+  final double deliveryFee;
+  final double deliveryServiceFee;
+  final double taxes;
+  final double tipAmount;
+  final double totalBeforeRewards;
   final int itemCount;
   final String fulfillmentType;
   final String shippingAddress;
@@ -974,6 +1142,9 @@ class RecentOrder {
   String get displayId => id.isEmpty ? 'Order' : 'Order #$id';
 
   bool get isDelivery => fulfillmentType.toLowerCase().contains('delivery');
+
+  bool get shouldShowDeliveryFees =>
+      isDelivery || deliveryFee > 0 || deliveryServiceFee > 0;
 
   String get fulfillmentLabel => _humanize(fulfillmentType);
 
@@ -1046,6 +1217,51 @@ class RecentOrder {
     final inferredCanReview =
         rawStatus.toLowerCase() == 'completed' ||
         rawStatus.toLowerCase() == 'delivered';
+    final itemSubtotal = items.fold<double>(0, (sum, item) => sum + item.price);
+    final pricingSubtotal = _firstDouble(pricingMap, const ['subtotal']);
+    final subtotal = pricingSubtotal > 0 ? pricingSubtotal : itemSubtotal;
+    final deliveryFee = _firstDouble(pricingMap, const [
+      'delivery_fee',
+      'deliveryFee',
+    ]);
+    final deliveryServiceFee = _firstDouble(pricingMap, const [
+      'delivery_service_fee',
+      'deliveryServiceFee',
+    ]);
+    final taxes = _firstDouble(pricingMap, const ['taxes', 'tax']);
+    final tipAmount = _firstDouble(pricingMap, const [
+      'tip_amount',
+      'tipAmount',
+      'tip',
+    ]);
+    final rewardDiscount = _firstDouble(pricingMap, const [
+      'reward_discount',
+      'rewardDiscount',
+    ]);
+    final pricingTotalBeforeRewards = _firstDouble(pricingMap, const [
+      'total_before_rewards',
+      'totalBeforeRewards',
+    ]);
+    final pricingTotal = _firstDouble(pricingMap, const ['total']);
+    final rawTotalAmount = _firstDouble(json, const [
+      'total_amount',
+      'totalAmount',
+      'grand_total',
+      'total',
+      'amount',
+    ]);
+    final calculatedTotalBeforeRewards =
+        subtotal + deliveryFee + deliveryServiceFee + taxes + tipAmount;
+    final totalBeforeRewards = pricingTotalBeforeRewards > 0
+        ? pricingTotalBeforeRewards
+        : calculatedTotalBeforeRewards;
+    final totalAmount = rawTotalAmount > 0
+        ? rawTotalAmount
+        : pricingTotal > 0
+        ? pricingTotal
+        : (totalBeforeRewards - rewardDiscount)
+              .clamp(0, double.infinity)
+              .toDouble();
 
     return RecentOrder(
       id: _firstString(json, const [
@@ -1057,13 +1273,14 @@ class RecentOrder {
       ]),
       status: _humanize(rawStatus),
       dateLabel: dateLabel.isEmpty ? 'Date unavailable' : dateLabel,
-      totalAmount: _firstDouble(json, const [
-        'total_amount',
-        'totalAmount',
-        'grand_total',
-        'total',
-        'amount',
-      ]),
+      currency: _firstString(json, const ['currency'], fallback: 'CAD'),
+      totalAmount: totalAmount,
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      deliveryServiceFee: deliveryServiceFee,
+      taxes: taxes,
+      tipAmount: tipAmount,
+      totalBeforeRewards: totalBeforeRewards,
       itemCount: _firstInt(json, const [
         'item_count',
         'itemCount',
@@ -1100,10 +1317,7 @@ class RecentOrder {
           'status',
         ]),
       ),
-      rewardDiscount: _firstDouble(pricingMap, const [
-        'reward_discount',
-        'rewardDiscount',
-      ]),
+      rewardDiscount: rewardDiscount,
       rewardTitle: _firstString(rewardMap, const ['title', 'name']),
       estimatedDelivery: _formatDate(
         _firstValue(json, const [
@@ -1320,6 +1534,12 @@ bool _firstBool(
   if (text == 'true' || text == 'yes' || text == '1') return true;
   if (text == 'false' || text == 'no' || text == '0') return false;
   return fallback;
+}
+
+String _formatMoney(String currency, double amount) {
+  final code = currency.trim().isEmpty ? 'CAD' : currency.trim().toUpperCase();
+  final sign = amount < 0 ? '-' : '';
+  return '$sign$code \$${amount.abs().toStringAsFixed(2)}';
 }
 
 List<Map<String, dynamic>> _readList(

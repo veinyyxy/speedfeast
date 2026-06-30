@@ -95,6 +95,10 @@ class ServiceConfig {
     return '$name:$port${getPersonalInfoPath()}';
   }
 
+  String getSystemConfigUrl() {
+    return '$name:$port${getSystemConfigPath()}';
+  }
+
   String getImagesRootUrl() {
     return '$name:$port';
   }
@@ -119,6 +123,7 @@ class ServiceConfig {
       _path('createPayment', '/api/payments/create');
   String getPaymentStatusPath() =>
       _path('getPaymentStatus', '/api/payments/status');
+  String getSystemConfigPath() => _path('systemConfig', '/api/config');
   String getCancelOrderPath() => _path('cancelOrder', '/api/orders/cancel');
   String getRecentOrdersPath() =>
       _path('listRecentOrders', '/api/orders/get_list');

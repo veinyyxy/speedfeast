@@ -10,6 +10,489 @@ import 'api_service.dart';
 import '../Security/collect_features.dart';
 import '../Common/order_item.dart';
 
+class OrderPricingConfig {
+  final String currency;
+  final double deliveryFee;
+  final double deliveryServiceFee;
+  final double taxRate;
+
+  static const fallback = OrderPricingConfig(
+    currency: 'CAD',
+    deliveryFee: 4.25,
+    deliveryServiceFee: 2.02,
+    taxRate: 0.13,
+  );
+
+  const OrderPricingConfig({
+    required this.currency,
+    required this.deliveryFee,
+    required this.deliveryServiceFee,
+    required this.taxRate,
+  });
+
+  factory OrderPricingConfig.fromSystemConfigs(Map<String, dynamic> configs) {
+    return OrderPricingConfig(
+      currency: _readConfigText(
+        configs['pricing.currency'],
+        fallback.currency,
+        const ['currency', 'value'],
+      ).toUpperCase(),
+      deliveryFee: _readConfigAmount(
+        configs['pricing.delivery_fee'],
+        fallback.deliveryFee,
+        const ['amount', 'delivery_fee', 'value'],
+      ),
+      deliveryServiceFee: _readConfigAmount(
+        configs['pricing.delivery_service_fee'],
+        fallback.deliveryServiceFee,
+        const ['amount', 'delivery_service_fee', 'value'],
+      ),
+      taxRate: _normalizeTaxRate(
+        _readConfigNumber(configs['pricing.tax'], fallback.taxRate, const [
+          'tax_rate',
+          'rate',
+          'value',
+        ]),
+        fallback.taxRate,
+      ),
+    );
+  }
+}
+
+class PickupEtaConfig {
+  final int minMinutes;
+  final int maxMinutes;
+  final String display;
+
+  static const fallback = PickupEtaConfig(
+    minMinutes: 15,
+    maxMinutes: 20,
+    display: '15-20 min',
+  );
+
+  const PickupEtaConfig({
+    required this.minMinutes,
+    required this.maxMinutes,
+    required this.display,
+  });
+
+  factory PickupEtaConfig.fromSystemConfigs(Map<String, dynamic> configs) {
+    final entry = configs['fulfillment.pickup_eta'];
+    final min = _readConfigInt(entry, fallback.minMinutes, const [
+      'min_minutes',
+      'minMinutes',
+      'min',
+      'minimum_minutes',
+    ]);
+    final max = _readConfigInt(entry, fallback.maxMinutes, const [
+      'max_minutes',
+      'maxMinutes',
+      'max',
+      'maximum_minutes',
+    ]);
+    final normalizedMin = min > 0 ? min : fallback.minMinutes;
+    final normalizedMax = max >= normalizedMin ? max : normalizedMin;
+    final display = _readConfigText(entry, '', const ['display', 'label']);
+
+    return PickupEtaConfig(
+      minMinutes: normalizedMin,
+      maxMinutes: normalizedMax,
+      display: display.isNotEmpty
+          ? display
+          : _formatEtaDisplay(normalizedMin, normalizedMax),
+    );
+  }
+}
+
+class BusinessHoursInterval {
+  final int openMinutes;
+  final int closeMinutes;
+
+  const BusinessHoursInterval({
+    required this.openMinutes,
+    required this.closeMinutes,
+  });
+
+  factory BusinessHoursInterval.fromJson(Map<String, dynamic> json) {
+    return BusinessHoursInterval(
+      openMinutes: _parseTimeToMinutes(json['open']) ?? 0,
+      closeMinutes: _parseTimeToMinutes(json['close']) ?? 0,
+    );
+  }
+
+  bool get isValid => closeMinutes > openMinutes;
+
+  bool contains(int minutes) {
+    return minutes >= openMinutes && minutes < closeMinutes;
+  }
+
+  String get label =>
+      '${_formatMinutes(openMinutes)} - '
+      '${_formatMinutes(closeMinutes)}';
+}
+
+class BusinessHoursDaySchedule {
+  final bool closed;
+  final String name;
+  final List<BusinessHoursInterval> intervals;
+
+  const BusinessHoursDaySchedule({
+    this.closed = false,
+    this.name = '',
+    this.intervals = const [],
+  });
+
+  factory BusinessHoursDaySchedule.fromJson(Map<String, dynamic> json) {
+    return BusinessHoursDaySchedule(
+      closed: _asConfigBool(json['closed']),
+      name: json['name']?.toString().trim() ?? '',
+      intervals: _parseIntervals(json['hours'] ?? json['intervals']),
+    );
+  }
+}
+
+class BusinessHoursConfig {
+  final String timezone;
+  final Map<int, List<BusinessHoursInterval>> weekly;
+  final Map<String, BusinessHoursDaySchedule> specialDates;
+  final bool publicHolidaysClosedByDefault;
+  final Map<String, String> publicHolidayNames;
+
+  static final fallback = BusinessHoursConfig(
+    timezone: 'America/Winnipeg',
+    weekly: {
+      for (
+        var weekday = DateTime.monday;
+        weekday <= DateTime.sunday;
+        weekday += 1
+      )
+        weekday: const [
+          BusinessHoursInterval(openMinutes: 9 * 60, closeMinutes: 22 * 60),
+        ],
+    },
+  );
+
+  const BusinessHoursConfig({
+    required this.timezone,
+    required this.weekly,
+    this.specialDates = const {},
+    this.publicHolidaysClosedByDefault = false,
+    this.publicHolidayNames = const {},
+  });
+
+  factory BusinessHoursConfig.fromSystemConfigs(Map<String, dynamic> configs) {
+    final value = _configValue(configs['operations.business_hours']);
+    if (value is! Map) return fallback;
+
+    final map = Map<String, dynamic>.from(value);
+    final weekly = _parseWeeklyHours(map['weekly']);
+    final publicHolidays = map['public_holidays'] is Map
+        ? Map<String, dynamic>.from(map['public_holidays'] as Map)
+        : const <String, dynamic>{};
+
+    return BusinessHoursConfig(
+      timezone: _readMapText(map, 'timezone', fallback.timezone),
+      weekly: weekly.isEmpty ? fallback.weekly : weekly,
+      specialDates: _parseSpecialDates(map['special_dates']),
+      publicHolidaysClosedByDefault: _asConfigBool(
+        publicHolidays['closed_by_default'],
+      ),
+      publicHolidayNames: _parseHolidayDates(publicHolidays['dates']),
+    );
+  }
+
+  List<BusinessHoursInterval> intervalsFor(DateTime date) {
+    final dateKey = _dateKey(date);
+    final special = specialDates[dateKey];
+    if (special != null) {
+      return special.closed ? const [] : special.intervals;
+    }
+    if (publicHolidaysClosedByDefault &&
+        publicHolidayNames.containsKey(dateKey)) {
+      return const [];
+    }
+    return weekly[date.weekday] ?? const [];
+  }
+
+  bool isOpenAt(DateTime dateTime) {
+    final minutes = dateTime.hour * 60 + dateTime.minute;
+    return intervalsFor(dateTime).any((interval) => interval.contains(minutes));
+  }
+
+  bool get isOpenNow => isOpenAt(DateTime.now());
+
+  String hoursLabelFor(DateTime date) {
+    final intervals = intervalsFor(date);
+    if (intervals.isEmpty) return 'Closed';
+    return intervals.map((interval) => interval.label).join(', ');
+  }
+
+  String statusLabel([DateTime? at]) {
+    final now = at ?? DateTime.now();
+    final minutes = now.hour * 60 + now.minute;
+    final intervals = intervalsFor(now);
+
+    for (final interval in intervals) {
+      if (interval.contains(minutes)) {
+        return 'Open until ${_formatMinutes(interval.closeMinutes)}';
+      }
+      if (minutes < interval.openMinutes) {
+        return 'Opens at ${_formatMinutes(interval.openMinutes)}';
+      }
+    }
+
+    final reason = closedReason(now);
+    return reason.isEmpty ? 'Closed today' : 'Closed today ($reason)';
+  }
+
+  String closedReason(DateTime date) {
+    final dateKey = _dateKey(date);
+    final special = specialDates[dateKey];
+    if (special != null && special.closed) return special.name;
+    if (publicHolidaysClosedByDefault) {
+      return publicHolidayNames[dateKey] ?? '';
+    }
+    return '';
+  }
+
+  DateTime firstSchedulableDateTime([DateTime? at]) {
+    final now = at ?? DateTime.now();
+    final rounded = now.add(const Duration(minutes: 15));
+    final candidate = DateTime(
+      rounded.year,
+      rounded.month,
+      rounded.day,
+      rounded.hour,
+      rounded.minute,
+    );
+
+    for (var dayOffset = 0; dayOffset < 14; dayOffset += 1) {
+      final date = now.add(Duration(days: dayOffset));
+      for (final interval in intervalsFor(date)) {
+        final open = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          interval.openMinutes ~/ 60,
+          interval.openMinutes % 60,
+        );
+        final close = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          interval.closeMinutes ~/ 60,
+          interval.closeMinutes % 60,
+        );
+
+        if (dayOffset == 0) {
+          if (candidate.isBefore(open)) return open;
+          if (candidate.isBefore(close)) return candidate;
+        } else {
+          return open;
+        }
+      }
+    }
+
+    return candidate;
+  }
+}
+
+dynamic _configValue(dynamic entry) {
+  if (entry is Map && entry.containsKey('value')) {
+    return entry['value'];
+  }
+  return entry;
+}
+
+String _readConfigText(
+  dynamic entry,
+  String fallback,
+  List<String> fieldNames,
+) {
+  final value = _configValue(entry);
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+
+  if (value is Map) {
+    for (final fieldName in fieldNames) {
+      final candidate = value[fieldName]?.toString().trim() ?? '';
+      if (candidate.isNotEmpty) return candidate;
+    }
+  }
+
+  return fallback;
+}
+
+double _readConfigNumber(
+  dynamic entry,
+  double fallback,
+  List<String> fieldNames,
+) {
+  final value = _configValue(entry);
+  if (value is num) return value.toDouble();
+  final parsedValue = double.tryParse(value?.toString() ?? '');
+  if (parsedValue != null) return parsedValue;
+
+  if (value is Map) {
+    for (final fieldName in fieldNames) {
+      final parsed = double.tryParse(value[fieldName]?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+int _readConfigInt(dynamic entry, int fallback, List<String> fieldNames) {
+  return _readConfigNumber(entry, fallback.toDouble(), fieldNames).round();
+}
+
+double _readConfigAmount(
+  dynamic entry,
+  double fallback,
+  List<String> fieldNames,
+) {
+  final value = _readConfigNumber(entry, fallback, fieldNames);
+  return value >= 0 ? value : fallback;
+}
+
+double _normalizeTaxRate(double value, double fallback) {
+  if (value < 0) return fallback;
+  if (value <= 1) return value;
+  if (value <= 100) return value / 100;
+  return fallback;
+}
+
+String _formatEtaDisplay(int minMinutes, int maxMinutes) {
+  if (maxMinutes <= minMinutes) return '$minMinutes min';
+  return '$minMinutes-$maxMinutes min';
+}
+
+String _readMapText(Map<String, dynamic> map, String key, String fallback) {
+  final text = map[key]?.toString().trim() ?? '';
+  return text.isEmpty ? fallback : text;
+}
+
+bool _asConfigBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final text = value?.toString().trim().toLowerCase() ?? '';
+  return text == 'true' || text == 'yes' || text == '1';
+}
+
+int? _parseTimeToMinutes(dynamic value) {
+  final text = value?.toString().trim() ?? '';
+  final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(text);
+  if (match == null) return null;
+  final hour = int.tryParse(match.group(1) ?? '');
+  final minute = int.tryParse(match.group(2) ?? '');
+  if (hour == null || minute == null) return null;
+  if (hour < 0 || hour > 24 || minute < 0 || minute > 59) return null;
+  if (hour == 24 && minute != 0) return null;
+  return hour * 60 + minute;
+}
+
+String _formatMinutes(int minutes) {
+  final normalized = minutes.clamp(0, 24 * 60).toInt();
+  final hour = normalized ~/ 60;
+  final minute = normalized % 60;
+  return '${hour.toString().padLeft(2, '0')}:'
+      '${minute.toString().padLeft(2, '0')}';
+}
+
+List<BusinessHoursInterval> _parseIntervals(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map(
+        (raw) => BusinessHoursInterval.fromJson(
+          raw.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          ),
+        ),
+      )
+      .where((interval) => interval.isValid)
+      .toList(growable: false);
+}
+
+Map<int, List<BusinessHoursInterval>> _parseWeeklyHours(dynamic value) {
+  if (value is! Map) return const {};
+  final result = <int, List<BusinessHoursInterval>>{};
+  value.forEach((rawKey, rawValue) {
+    final weekday = _weekdayFromKey(rawKey?.toString() ?? '');
+    if (weekday == null) return;
+    result[weekday] = _parseIntervals(rawValue);
+  });
+  return result;
+}
+
+Map<String, BusinessHoursDaySchedule> _parseSpecialDates(dynamic value) {
+  if (value is! List) return const {};
+  final result = <String, BusinessHoursDaySchedule>{};
+  for (final item in value.whereType<Map>()) {
+    final map = item.map<String, dynamic>(
+      (key, value) => MapEntry(key.toString(), value),
+    );
+    final date = map['date']?.toString().trim() ?? '';
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) continue;
+    result[date] = BusinessHoursDaySchedule.fromJson(map);
+  }
+  return result;
+}
+
+Map<String, String> _parseHolidayDates(dynamic value) {
+  if (value is! List) return const {};
+  final result = <String, String>{};
+  for (final item in value.whereType<Map>()) {
+    final date = item['date']?.toString().trim() ?? '';
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) continue;
+    result[date] = item['name']?.toString().trim() ?? '';
+  }
+  return result;
+}
+
+int? _weekdayFromKey(String key) {
+  switch (key.trim().toLowerCase()) {
+    case 'monday':
+    case 'mon':
+    case '1':
+      return DateTime.monday;
+    case 'tuesday':
+    case 'tue':
+    case '2':
+      return DateTime.tuesday;
+    case 'wednesday':
+    case 'wed':
+    case '3':
+      return DateTime.wednesday;
+    case 'thursday':
+    case 'thu':
+    case '4':
+      return DateTime.thursday;
+    case 'friday':
+    case 'fri':
+    case '5':
+      return DateTime.friday;
+    case 'saturday':
+    case 'sat':
+    case '6':
+      return DateTime.saturday;
+    case 'sunday':
+    case 'sun':
+    case '7':
+      return DateTime.sunday;
+  }
+  return null;
+}
+
+String _dateKey(DateTime value) {
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
+
 class _SelectedOptionPriceResult {
   final double total;
   final bool hasMissingSelection;
@@ -39,6 +522,9 @@ class ServiceProvider with ChangeNotifier {
   String? _lastLoginError;
   String _selectedFulfillmentType = 'delivery';
   Map<String, dynamic>? _dineInTableContext;
+  OrderPricingConfig _orderPricingConfig = OrderPricingConfig.fallback;
+  PickupEtaConfig _pickupEtaConfig = PickupEtaConfig.fallback;
+  BusinessHoursConfig _businessHoursConfig = BusinessHoursConfig.fallback;
   late ApiService _apiService;
 
   bool get isLoggedIn => _isLoggedIn;
@@ -53,6 +539,17 @@ class ServiceProvider with ChangeNotifier {
   String? get lastDineInError => _lastDineInError;
   String? get lastLoginError => _lastLoginError;
   String get selectedFulfillmentType => _selectedFulfillmentType;
+  OrderPricingConfig get orderPricingConfig => _orderPricingConfig;
+  PickupEtaConfig get pickupEtaConfig => _pickupEtaConfig;
+  BusinessHoursConfig get businessHoursConfig => _businessHoursConfig;
+  String get restaurantStatusLabel {
+    final status = _businessHoursConfig.statusLabel();
+    final pickup = _businessHoursConfig.isOpenNow
+        ? 'Pickup ${_pickupEtaConfig.display}'
+        : 'Pickup unavailable';
+    return '$status · $pickup';
+  }
+
   Map<String, dynamic>? get dineInTableContext => _dineInTableContext == null
       ? null
       : Map<String, dynamic>.from(_dineInTableContext!);
@@ -291,7 +788,7 @@ class ServiceProvider with ChangeNotifier {
           : item.description,
       isAvailable: true,
       availabilityMessage: priceChanged
-          ? 'Price updated from CAD \$${item.price.toStringAsFixed(2)} to CAD \$${nextPrice.toStringAsFixed(2)}.'
+          ? 'Price updated from ${_orderPricingConfig.currency} \$${item.price.toStringAsFixed(2)} to ${_orderPricingConfig.currency} \$${nextPrice.toStringAsFixed(2)}.'
           : '',
       priceChanged: priceChanged,
     );
@@ -701,7 +1198,7 @@ class ServiceProvider with ChangeNotifier {
     }
 
     final requestBody = <String, dynamic>{
-      'currency': 'CAD',
+      'currency': _orderPricingConfig.currency,
       'fulfillment_type': normalizedFulfillmentType,
       'tip_amount': tipAmount,
       'items': _cartItems.map((item) {
@@ -1396,6 +1893,7 @@ class ServiceProvider with ChangeNotifier {
 
     // 加载配置 (此方法内部有 await)
     await loadConfig();
+    await fetchOrderPricingConfig();
 
     if (_userToken != null && _userToken!.isNotEmpty) {
       final tokenIsValid = await validateToken();
@@ -1584,6 +2082,48 @@ class ServiceProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error loading config: $e');
       rethrow;
+    }
+  }
+
+  Future<void> fetchOrderPricingConfig() async {
+    if (_config == null) {
+      debugPrint('Config not loaded yet for fetchOrderPricingConfig.');
+      return;
+    }
+
+    try {
+      final rawResponse = await _apiService.get(
+        _config!.getSystemConfigPath(),
+        queryParameters: const {
+          'app_scope': 'order_client',
+          'country_code': 'CA',
+          'region_code': 'MB',
+        },
+      );
+      final responseData = rawResponse as Map<String, dynamic>;
+      final rawConfigs = responseData['configs'];
+      if (responseData['success'] == true && rawConfigs is Map) {
+        final configs = Map<String, dynamic>.from(rawConfigs);
+        _orderPricingConfig = OrderPricingConfig.fromSystemConfigs(configs);
+        _pickupEtaConfig = PickupEtaConfig.fromSystemConfigs(configs);
+        _businessHoursConfig = BusinessHoursConfig.fromSystemConfigs(configs);
+        notifyListeners();
+        debugPrint(
+          'Order system config loaded: '
+          '${_orderPricingConfig.currency}, '
+          'delivery=${_orderPricingConfig.deliveryFee}, '
+          'service=${_orderPricingConfig.deliveryServiceFee}, '
+          'tax=${_orderPricingConfig.taxRate}, '
+          'pickup=${_pickupEtaConfig.display}, '
+          'business=${_businessHoursConfig.statusLabel()}',
+        );
+      }
+    } on AppException catch (e) {
+      debugPrint('Error fetching order pricing config: ${e.message}');
+    } catch (e) {
+      debugPrint(
+        'An unexpected error occurred while fetching order pricing config: $e',
+      );
     }
   }
 

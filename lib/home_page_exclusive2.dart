@@ -31,7 +31,6 @@ class _HomePageState extends State<HomePage> {
       '630 Guelph Street, Winnipeg, MB, Canada';
   static const String _restaurantPostalCode = 'R3M 3B2';
   static const String _restaurantPhone = '+1 (204) 555-0138';
-  static const String _restaurantStatus = 'Open now · Pickup 15-20 min';
   static const bool _showSearchButton = false;
   static const double _cartFabWidth = 148;
   static const double _cartFabHeight = 58;
@@ -430,6 +429,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRestaurantStatusStrip(ColorScheme colorScheme) {
+    final serviceProvider = context.watch<ServiceProvider>();
+    final restaurantStatus = serviceProvider.restaurantStatusLabel;
+    final isRestaurantOpen = serviceProvider.businessHoursConfig.isOpenNow;
+
     return Material(
       color: colorScheme.primary.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(16),
@@ -475,15 +478,17 @@ class _HomePageState extends State<HomePage> {
                         Container(
                           width: 7,
                           height: 7,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF21A663),
+                          decoration: BoxDecoration(
+                            color: isRestaurantOpen
+                                ? const Color(0xFF21A663)
+                                : Colors.grey.shade500,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            _restaurantStatus,
+                            restaurantStatus,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -795,6 +800,10 @@ class _CartFloatingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final countLabel = cartCount > 99 ? '99+' : cartCount.toString();
+    final currencyCode = context
+        .watch<ServiceProvider>()
+        .orderPricingConfig
+        .currency;
 
     return SizedBox(
       width: _HomePageState._cartFabWidth,
@@ -841,7 +850,7 @@ class _CartFloatingButton extends StatelessWidget {
                       const SizedBox(width: 9),
                       Expanded(
                         child: Text(
-                          'CAD \$${cartSubtotal.toStringAsFixed(2)}',
+                          '$currencyCode \$${cartSubtotal.toStringAsFixed(2)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

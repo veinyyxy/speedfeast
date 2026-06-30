@@ -14,6 +14,7 @@
       "validate" : "/api/user/validate",
       "createOrder" : "/api/orders/create",
       "verifyDineInTable" : "/api/dine-in/table/verify",
+      "systemConfig" : "/api/config",
       "createPayment" : "/api/payments/create",
       "getPaymentStatus" : "/api/payments/status",
       "cancelOrder" : "/api/orders/cancel",

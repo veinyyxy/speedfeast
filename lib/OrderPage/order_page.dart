@@ -264,10 +264,6 @@ class _OrderPageState extends State<OrderPage> {
   static const String _storeName = 'SpeedFeast Restaurant';
   static const bool _showFishAlertWarning = false;
   static const bool _showSupplyChainShortageWarning = false;
-  static const int _businessOpenHour = 9;
-  static const int _businessOpenMinute = 0;
-  static const int _businessCloseHour = 22;
-  static const int _businessCloseMinute = 0;
 
   @override
   void initState() {
@@ -1079,9 +1075,17 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   double get subtotal => context.read<ServiceProvider>().cartSubtotal;
-  double get deliveryFee => 4.25;
-  double get deliveryServiceFee => 2.02;
-  double get taxes => subtotal * 0.13;
+  OrderPricingConfig get pricingConfig =>
+      context.read<ServiceProvider>().orderPricingConfig;
+  String get currencyCode => pricingConfig.currency;
+  double get deliveryFee => pricingConfig.deliveryFee;
+  double get deliveryServiceFee => pricingConfig.deliveryServiceFee;
+  double get taxes => subtotal * pricingConfig.taxRate;
+
+  String _formatMoney(double amount) {
+    final prefix = amount < 0 ? '-' : '';
+    return '$prefix$currencyCode \$${amount.abs().toStringAsFixed(2)}';
+  }
 
   double get tipAmount {
     if (_tipPercentage == -1) {
@@ -1146,12 +1150,13 @@ class _OrderPageState extends State<OrderPage> {
     return addressId.isEmpty ? null : addressId;
   }
 
-  int get _businessOpenMinutes => _businessOpenHour * 60 + _businessOpenMinute;
-  int get _businessCloseMinutes =>
-      _businessCloseHour * 60 + _businessCloseMinute;
+  BusinessHoursConfig get _businessHoursConfig =>
+      context.read<ServiceProvider>().businessHoursConfig;
+  PickupEtaConfig get _pickupEtaConfig =>
+      context.read<ServiceProvider>().pickupEtaConfig;
 
   String get _businessHoursLabel =>
-      '${_formatClock(_businessOpenHour, _businessOpenMinute)} - ${_formatClock(_businessCloseHour, _businessCloseMinute)}';
+      _businessHoursConfig.hoursLabelFor(DateTime.now());
 
   String get _deliveryTimeLabel {
     if (_deliveryTimeMode == DeliveryTimeMode.scheduled &&
@@ -1171,12 +1176,6 @@ class _OrderPageState extends State<OrderPage> {
     return 'Delivery time preference: merchant decides after order, usually within 30 minutes.';
   }
 
-  String _formatClock(int hour, int minute) {
-    final hourText = hour.toString().padLeft(2, '0');
-    final minuteText = minute.toString().padLeft(2, '0');
-    return '$hourText:$minuteText';
-  }
-
   String _formatDateTime(DateTime value) {
     final year = value.year.toString().padLeft(4, '0');
     final month = value.month.toString().padLeft(2, '0');
@@ -1187,47 +1186,11 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   bool _isWithinBusinessHours(DateTime value) {
-    final minutes = value.hour * 60 + value.minute;
-    return minutes >= _businessOpenMinutes && minutes <= _businessCloseMinutes;
+    return _businessHoursConfig.isOpenAt(value);
   }
 
   DateTime _firstSchedulableDateTime() {
-    final now = DateTime.now();
-    final todayOpen = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _businessOpenHour,
-      _businessOpenMinute,
-    );
-    final todayClose = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _businessCloseHour,
-      _businessCloseMinute,
-    );
-
-    if (now.isBefore(todayOpen)) return todayOpen;
-    final roundedNow = now.add(const Duration(minutes: 15));
-    if (!roundedNow.isAfter(todayClose)) {
-      return DateTime(
-        roundedNow.year,
-        roundedNow.month,
-        roundedNow.day,
-        roundedNow.hour,
-        roundedNow.minute,
-      );
-    }
-
-    final tomorrow = now.add(const Duration(days: 1));
-    return DateTime(
-      tomorrow.year,
-      tomorrow.month,
-      tomorrow.day,
-      _businessOpenHour,
-      _businessOpenMinute,
-    );
+    return _businessHoursConfig.firstSchedulableDateTime();
   }
 
   String? _scheduledDeliveryTimeError(DateTime? value) {
@@ -1236,7 +1199,8 @@ class _OrderPageState extends State<OrderPage> {
       return 'Scheduled delivery time must be in the future.';
     }
     if (!_isWithinBusinessHours(value)) {
-      return 'Scheduled delivery time must be within business hours ($_businessHoursLabel).';
+      final label = _businessHoursConfig.hoursLabelFor(value);
+      return 'Scheduled delivery time must be within business hours ($label).';
     }
     return null;
   }
@@ -1619,36 +1583,23 @@ class _OrderPageState extends State<OrderPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 children: [
-                  _buildPriceRow(
-                    'Subtotal',
-                    'CAD \$${subtotal.toStringAsFixed(2)}',
-                  ),
+                  _buildPriceRow('Subtotal', _formatMoney(subtotal)),
                   if (_deliveryMode == DeliveryMode.delivery) ...[
-                    _buildPriceRow(
-                      'Delivery Fee',
-                      'CAD \$${deliveryFee.toStringAsFixed(2)}',
-                    ),
+                    _buildPriceRow('Delivery Fee', _formatMoney(deliveryFee)),
                     _buildPriceRow(
                       'Delivery Service Fee',
-                      'CAD \$${deliveryServiceFee.toStringAsFixed(2)}',
+                      _formatMoney(deliveryServiceFee),
                     ),
                   ],
-                  _buildPriceRow('Taxes', 'CAD \$${taxes.toStringAsFixed(2)}'),
-                  _buildPriceRow(
-                    'Tip',
-                    'CAD \$${tipAmount.toStringAsFixed(2)}',
-                  ),
+                  _buildPriceRow('Taxes', _formatMoney(taxes)),
+                  _buildPriceRow('Tip', _formatMoney(tipAmount)),
                   if (rewardDiscount > 0)
                     _buildPriceRow(
                       'Reward Discount',
-                      '-CAD \$${rewardDiscount.toStringAsFixed(2)}',
+                      _formatMoney(-rewardDiscount),
                     ),
                   const Divider(height: 30, thickness: 1, color: Colors.grey),
-                  _buildPriceRow(
-                    'Total',
-                    'CAD \$${total.toStringAsFixed(2)}',
-                    isTotal: true,
-                  ),
+                  _buildPriceRow('Total', _formatMoney(total), isTotal: true),
                 ],
               ),
             ),
@@ -1684,7 +1635,7 @@ class _OrderPageState extends State<OrderPage> {
           child: Text(
             _isSubmittingOrder
                 ? 'Creating Order...'
-                : 'Make My Order • CAD \$${total.toStringAsFixed(2)}',
+                : 'Make My Order • ${_formatMoney(total)}',
             style: const TextStyle(
               fontSize: 18,
               color: Colors.white,
@@ -2274,7 +2225,7 @@ class _OrderPageState extends State<OrderPage> {
             Icon(Icons.timer, size: 16, color: Colors.grey[600]),
             const SizedBox(width: 4),
             Text(
-              'Ready in 15-20 minutes',
+              'Ready in ${_pickupEtaConfig.display}',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
@@ -2398,7 +2349,7 @@ class _OrderPageState extends State<OrderPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          'Unit price: CAD \$${item.price.toStringAsFixed(2)}',
+                          'Unit price: ${_formatMoney(item.price)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -2509,7 +2460,7 @@ class _OrderPageState extends State<OrderPage> {
                 Text(
                   isUnavailable
                       ? 'Unavailable'
-                      : 'CAD \$${(item.quantity * item.price).toStringAsFixed(2)}',
+                      : _formatMoney(item.quantity * item.price),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: isUnavailable ? Colors.red.shade700 : Colors.black,
@@ -2707,7 +2658,7 @@ class _OrderPageState extends State<OrderPage> {
                 ),
               ),
               Text(
-                'CAD \$${amount.toStringAsFixed(2)}',
+                _formatMoney(amount),
                 style: TextStyle(
                   fontSize: 12,
                   color: isSelected ? primaryColor : Colors.grey[700],
@@ -2763,7 +2714,7 @@ class _OrderPageState extends State<OrderPage> {
                         autofocus: true,
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          hintText: 'CAD \$0.00',
+                          hintText: '$currencyCode \$0.00',
                           isDense: true,
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
@@ -2782,9 +2733,7 @@ class _OrderPageState extends State<OrderPage> {
                       ),
                     )
                   : Text(
-                      _customTip > 0
-                          ? 'CAD \$${_customTip.toStringAsFixed(2)}'
-                          : ' ',
+                      _customTip > 0 ? _formatMoney(_customTip) : ' ',
                       style: TextStyle(
                         fontSize: 12,
                         color: isSelected ? primaryColor : Colors.grey[700],
