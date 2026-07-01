@@ -26,11 +26,6 @@ class _HomePageState extends State<HomePage> {
   final List<Widget> _dynamicSliverWidgets = [];
   bool _isInitDataLoaded = false; // 用于确保 didChangeDependencies 中的逻辑只运行一次
 
-  static const String _restaurantName = 'SpeedFeast Restaurant';
-  static const String _restaurantAddress =
-      '630 Guelph Street, Winnipeg, MB, Canada';
-  static const String _restaurantPostalCode = 'R3M 3B2';
-  static const String _restaurantPhone = '+1 (204) 555-0138';
   static const bool _showSearchButton = false;
   static const double _cartFabWidth = 148;
   static const double _cartFabHeight = 58;
@@ -158,6 +153,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showAboutUsDialog() {
+    final storeProfile = context.read<ServiceProvider>().storeProfileConfig;
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -169,31 +166,34 @@ class _HomePageState extends State<HomePage> {
             'About Us',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          content: const Column(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _restaurantName,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                storeProfile.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              SizedBox(height: 14),
+              const SizedBox(height: 14),
               _AboutInfoRow(
                 icon: Icons.location_on_outlined,
                 label: 'Address',
-                value: _restaurantAddress,
+                value: storeProfile.addressDisplay,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               _AboutInfoRow(
                 icon: Icons.local_post_office_outlined,
                 label: 'Postal Code',
-                value: _restaurantPostalCode,
+                value: storeProfile.postalCode,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               _AboutInfoRow(
                 icon: Icons.phone_outlined,
                 label: 'Phone',
-                value: _restaurantPhone,
+                value: storeProfile.phone,
               ),
             ],
           ),
@@ -430,8 +430,15 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildRestaurantStatusStrip(ColorScheme colorScheme) {
     final serviceProvider = context.watch<ServiceProvider>();
+    final storeProfile = serviceProvider.storeProfileConfig;
     final restaurantStatus = serviceProvider.restaurantStatusLabel;
     final isRestaurantOpen = serviceProvider.businessHoursConfig.isOpenNow;
+    final normalizedStatus = restaurantStatus.toLowerCase();
+    final statusColor = isRestaurantOpen
+        ? const Color(0xFF21A663)
+        : normalizedStatus.contains('closed')
+        ? Colors.red.shade700
+        : Colors.orange.shade800;
 
     return Material(
       color: colorScheme.primary.withValues(alpha: 0.06),
@@ -443,30 +450,18 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.storefront_outlined,
-                  color: colorScheme.primary,
-                  size: 22,
-                ),
-              ),
+              _buildStoreLogo(serviceProvider, colorScheme),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      _restaurantName,
+                    Text(
+                      storeProfile.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Colors.black87,
@@ -479,9 +474,7 @@ class _HomePageState extends State<HomePage> {
                           width: 7,
                           height: 7,
                           decoration: BoxDecoration(
-                            color: isRestaurantOpen
-                                ? const Color(0xFF21A663)
-                                : Colors.grey.shade500,
+                            color: statusColor,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -494,7 +487,7 @@ class _HomePageState extends State<HomePage> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade700,
+                              color: statusColor,
                             ),
                           ),
                         ),
@@ -512,6 +505,56 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStoreLogo(
+    ServiceProvider serviceProvider,
+    ColorScheme colorScheme,
+  ) {
+    final logoUrl = serviceProvider.storeLogoUrl;
+    final logoAlt = serviceProvider.storeProfileConfig.logoAlt;
+    final child = logoUrl.isEmpty
+        ? _buildStoreLogoFallback(colorScheme)
+        : logoUrl.startsWith('assets/')
+        ? Image.asset(
+            logoUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            semanticLabel: logoAlt,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildStoreLogoFallback(colorScheme),
+          )
+        : Image.network(
+            logoUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            semanticLabel: logoAlt,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildStoreLogoFallback(colorScheme),
+          );
+
+    return Container(
+      width: 38,
+      height: 38,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildStoreLogoFallback(ColorScheme colorScheme) {
+    return Center(
+      child: Icon(
+        Icons.storefront_outlined,
+        color: colorScheme.primary,
+        size: 22,
       ),
     );
   }

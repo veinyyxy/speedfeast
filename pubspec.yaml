@@ -49,6 +49,11 @@ dependencies:
   device_info_plus: ^12.1.0
   mobile_scanner: ^7.2.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/SpeedFeast_icon.png"
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

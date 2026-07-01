@@ -327,6 +327,15 @@ class _OrderCard extends StatelessWidget {
                   icon: Icons.payments_outlined,
                   label: _formatMoney(order.currency, order.totalAmount),
                 ),
+                if (order.hasRefund) ...[
+                  const SizedBox(height: 8),
+                  _InfoLine(
+                    icon: Icons.replay_outlined,
+                    label:
+                        '${order.refundLabel}: ${_formatMoney(order.currency, order.refundedAmount)}',
+                    color: _refundColor(order),
+                  ),
+                ],
                 if (order.paymentStatusLabel.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _InfoLine(
@@ -501,6 +510,12 @@ class _OrderDetailsSheet extends StatelessWidget {
               const SizedBox(height: 16),
               _DetailRow(label: 'Status', value: order.status),
               _DetailRow(label: 'Payment', value: order.paymentStatusLabel),
+              if (order.hasRefund)
+                _DetailRow(
+                  label: order.refundLabel,
+                  value: _formatMoney(order.currency, order.refundedAmount),
+                  valueColor: _refundColor(order),
+                ),
               _DetailRow(label: 'Date', value: order.dateLabel),
               _DetailRow(label: 'Fulfillment', value: order.fulfillmentLabel),
               _DetailRow(label: 'Payment Method', value: order.paymentMethod),
@@ -671,6 +686,14 @@ class _OrderPricingSummary extends StatelessWidget {
             value: _formatMoney(order.currency, order.totalAmount),
             isTotal: true,
           ),
+          if (order.hasRefund) ...[
+            const SizedBox(height: 6),
+            _PriceSummaryRow(
+              label: order.refundLabel,
+              value: _formatMoney(order.currency, order.refundedAmount),
+              valueColor: _refundColor(order),
+            ),
+          ],
         ],
       ),
     );
@@ -682,11 +705,13 @@ class _PriceSummaryRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isTotal = false,
+    this.valueColor,
   });
 
   final String label;
   final String value;
   final bool isTotal;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -712,7 +737,7 @@ class _PriceSummaryRow extends StatelessWidget {
             value,
             textAlign: TextAlign.right,
             style: TextStyle(
-              color: Colors.black,
+              color: valueColor ?? Colors.black,
               fontSize: isTotal ? 18 : 14,
               fontWeight: isTotal ? FontWeight.w900 : FontWeight.w500,
             ),
@@ -816,7 +841,7 @@ class _StatusTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rank = _statusRank(order.status);
+    final rank = _statusRank(order.timelineStatus);
     if (rank < 0) {
       return Row(
         children: [
@@ -824,7 +849,7 @@ class _StatusTimeline extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'This order is ${order.status.toLowerCase()}.',
+              'This order is ${order.timelineStatus.toLowerCase()}.',
               style: TextStyle(color: Colors.red.shade700),
             ),
           ),
@@ -927,10 +952,11 @@ class _StatusChip extends StatelessWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.icon, required this.label});
+  const _InfoLine({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -938,14 +964,16 @@ class _InfoLine extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 18, color: primary.withValues(alpha: 0.82)),
+        Icon(icon, size: 18, color: color ?? primary.withValues(alpha: 0.82)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             label,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.black.withValues(alpha: 0.78)),
+            style: TextStyle(
+              color: color ?? Colors.black.withValues(alpha: 0.78),
+            ),
           ),
         ),
       ],
@@ -954,10 +982,11 @@ class _InfoLine extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+  const _DetailRow({required this.label, required this.value, this.valueColor});
 
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -983,7 +1012,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.84),
+                color: valueColor ?? Colors.black.withValues(alpha: 0.84),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1088,9 +1117,13 @@ class RecentOrder {
   const RecentOrder({
     required this.id,
     required this.status,
+    required this.timelineStatus,
     required this.dateLabel,
     required this.currency,
     required this.totalAmount,
+    required this.refundedAmount,
+    required this.refundableAmount,
+    required this.refunds,
     required this.subtotal,
     required this.deliveryFee,
     required this.deliveryServiceFee,
@@ -1115,9 +1148,13 @@ class RecentOrder {
 
   final String id;
   final String status;
+  final String timelineStatus;
   final String dateLabel;
   final String currency;
   final double totalAmount;
+  final double refundedAmount;
+  final double refundableAmount;
+  final List<Map<String, dynamic>> refunds;
   final double subtotal;
   final double deliveryFee;
   final double deliveryServiceFee;
@@ -1149,6 +1186,15 @@ class RecentOrder {
   String get fulfillmentLabel => _humanize(fulfillmentType);
 
   String get paymentStatusLabel => _humanize(paymentStatus);
+
+  bool get hasRefund => refundedAmount > 0.005;
+
+  bool get isPartiallyRefunded => _isPartiallyRefundedStatus(status);
+
+  bool get isRefunded => _isRefundedStatus(status);
+
+  String get refundLabel =>
+      isPartiallyRefunded ? 'Partially Refunded' : 'Refunded';
 
   bool get canCancel {
     if (id.trim().isEmpty) return false;
@@ -1199,6 +1245,9 @@ class RecentOrder {
             (key, value) => MapEntry(key.toString(), value),
           )
         : const <String, dynamic>{};
+    final rawTimelineStatus = _isPartiallyRefundedStatus(rawStatus)
+        ? _timelineStatusFromFulfillment(fulfillmentMap, rawStatus)
+        : rawStatus;
     final pricingValue =
         _firstValue(json, const ['pricing']) ?? fulfillmentMap['pricing'];
     final pricingMap = pricingValue is Map
@@ -1262,6 +1311,30 @@ class RecentOrder {
         : (totalBeforeRewards - rewardDiscount)
               .clamp(0, double.infinity)
               .toDouble();
+    final topLevelRefundedAmount = _firstDouble(json, const [
+      'refunded_amount',
+      'refundedAmount',
+    ]);
+    final paymentRefundedAmount = _firstDouble(paymentMap, const [
+      'refunded_amount',
+      'refundedAmount',
+    ]);
+    final refundedAmount = topLevelRefundedAmount > 0
+        ? topLevelRefundedAmount
+        : paymentRefundedAmount;
+    final topLevelRefundableAmount = _firstDouble(json, const [
+      'refundable_amount',
+      'refundableAmount',
+    ]);
+    final paymentRefundableAmount = _firstDouble(paymentMap, const [
+      'refundable_amount',
+      'refundableAmount',
+    ]);
+    final refundableAmount = topLevelRefundableAmount > 0
+        ? topLevelRefundableAmount
+        : paymentRefundableAmount;
+    final topLevelRefunds = _readList(json, const ['refunds']);
+    final paymentRefunds = _readList(paymentMap, const ['refunds']);
 
     return RecentOrder(
       id: _firstString(json, const [
@@ -1272,9 +1345,13 @@ class RecentOrder {
         'id',
       ]),
       status: _humanize(rawStatus),
+      timelineStatus: _humanize(rawTimelineStatus),
       dateLabel: dateLabel.isEmpty ? 'Date unavailable' : dateLabel,
       currency: _firstString(json, const ['currency'], fallback: 'CAD'),
       totalAmount: totalAmount,
+      refundedAmount: refundedAmount,
+      refundableAmount: refundableAmount,
+      refunds: topLevelRefunds.isNotEmpty ? topLevelRefunds : paymentRefunds,
       subtotal: subtotal,
       deliveryFee: deliveryFee,
       deliveryServiceFee: deliveryServiceFee,
@@ -1559,6 +1636,57 @@ List<Map<String, dynamic>> _readList(
       .toList(growable: false);
 }
 
+String _timelineStatusFromFulfillment(
+  Map<String, dynamic> fulfillmentMap,
+  String fallback,
+) {
+  final events = _readList(fulfillmentMap, const [
+    'merchant_events',
+    'merchantEvents',
+    'status_history',
+    'statusHistory',
+  ]);
+  for (final event in events.reversed) {
+    final status = _firstString(event, const [
+      'status',
+      'order_status',
+      'orderStatus',
+    ]);
+    final normalizedStatus = status.toLowerCase();
+    if (_isPartiallyRefundedStatus(status) || _isRefundedStatus(status)) {
+      final previousStatus = _firstString(event, const [
+        'previous_status',
+        'previousStatus',
+      ]);
+      if (_isFulfillmentProgressStatus(previousStatus)) {
+        return previousStatus;
+      }
+      continue;
+    }
+    if (_isFulfillmentProgressStatus(normalizedStatus)) return status;
+  }
+
+  return fallback;
+}
+
+bool _isFulfillmentProgressStatus(String status) {
+  final normalized = status.toLowerCase();
+  if (normalized.isEmpty) return false;
+  if (normalized.contains('cancel') ||
+      _isPartiallyRefundedStatus(normalized) ||
+      _isRefundedStatus(normalized)) {
+    return false;
+  }
+  return normalized == 'created' ||
+      normalized == 'paid' ||
+      normalized == 'accepted' ||
+      normalized == 'preparing' ||
+      normalized == 'ready' ||
+      normalized == 'on_the_way' ||
+      normalized == 'delivered' ||
+      normalized == 'completed';
+}
+
 String _formatDate(dynamic value) {
   if (value == null) return '';
   if (value is num) {
@@ -1667,7 +1795,7 @@ String _humanize(String value) {
 
 int _statusRank(String status) {
   final normalized = status.toLowerCase();
-  if (normalized.contains('cancel') || normalized.contains('refund')) return -1;
+  if (normalized.contains('cancel') || _isRefundedStatus(normalized)) return -1;
   if (normalized.contains('deliver') ||
       normalized.contains('complete') ||
       normalized.contains('finish')) {
@@ -1689,9 +1817,28 @@ int _statusRank(String status) {
   return 0;
 }
 
+bool _isPartiallyRefundedStatus(String status) {
+  final normalized = status.toLowerCase();
+  return normalized.contains('partial') && normalized.contains('refund');
+}
+
+bool _isRefundedStatus(String status) {
+  final normalized = status.toLowerCase();
+  return normalized.contains('refund') &&
+      !_isPartiallyRefundedStatus(normalized);
+}
+
+Color _refundColor(RecentOrder order) {
+  if (order.isPartiallyRefunded) return Colors.deepOrange.shade700;
+  return Colors.red.shade700;
+}
+
 Color _statusColor(BuildContext context, String status) {
   final normalized = status.toLowerCase();
-  if (normalized.contains('cancel') || normalized.contains('refund')) {
+  if (_isPartiallyRefundedStatus(normalized)) {
+    return Colors.deepOrange.shade700;
+  }
+  if (normalized.contains('cancel') || _isRefundedStatus(normalized)) {
     return Colors.red.shade700;
   }
   if (normalized.contains('deliver') ||

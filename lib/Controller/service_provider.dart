@@ -104,6 +104,94 @@ class PickupEtaConfig {
   }
 }
 
+class StoreProfileConfig {
+  final String name;
+  final String addressLine1;
+  final String city;
+  final String region;
+  final String country;
+  final String postalCode;
+  final String addressDisplay;
+  final String phone;
+  final String logoAssetId;
+  final String logoUrl;
+  final String logoAlt;
+
+  static const fallback = StoreProfileConfig(
+    name: 'SpeedFeast Restaurant',
+    addressLine1: '630 Guelph Street',
+    city: 'Winnipeg',
+    region: 'MB',
+    country: 'Canada',
+    postalCode: 'R3M 3B2',
+    addressDisplay: '630 Guelph Street, Winnipeg, MB, Canada',
+    phone: '+1 (204) 555-0138',
+    logoAssetId: '',
+    logoUrl: '',
+    logoAlt: 'SpeedFeast Restaurant logo',
+  );
+
+  const StoreProfileConfig({
+    required this.name,
+    required this.addressLine1,
+    required this.city,
+    required this.region,
+    required this.country,
+    required this.postalCode,
+    required this.addressDisplay,
+    required this.phone,
+    required this.logoAssetId,
+    required this.logoUrl,
+    required this.logoAlt,
+  });
+
+  factory StoreProfileConfig.fromSystemConfigs(Map<String, dynamic> configs) {
+    final value = _configValue(configs['store.profile']);
+    if (value is! Map) return fallback;
+
+    final profile = Map<String, dynamic>.from(value);
+    final address = profile['address'] is Map
+        ? Map<String, dynamic>.from(profile['address'] as Map)
+        : const <String, dynamic>{};
+    final logo = profile['logo'] is Map
+        ? Map<String, dynamic>.from(profile['logo'] as Map)
+        : const <String, dynamic>{};
+    final addressLine1 = _readMapText(address, 'line1', fallback.addressLine1);
+    final city = _readMapText(address, 'city', fallback.city);
+    final region = _readMapText(address, 'region', fallback.region);
+    final country = _readMapText(address, 'country', fallback.country);
+    final postalCode = _readMapText(
+      address,
+      'postal_code',
+      _readMapText(address, 'postalCode', fallback.postalCode),
+    );
+    final addressDisplay = _readMapText(
+      address,
+      'display',
+      [
+        addressLine1,
+        city,
+        region,
+        country,
+      ].where((part) => part.trim().isNotEmpty).join(', '),
+    );
+
+    return StoreProfileConfig(
+      name: _readMapText(profile, 'name', fallback.name),
+      addressLine1: addressLine1,
+      city: city,
+      region: region,
+      country: country,
+      postalCode: postalCode,
+      addressDisplay: addressDisplay,
+      phone: _readMapText(profile, 'phone', fallback.phone),
+      logoAssetId: _readMapText(logo, 'asset_id', ''),
+      logoUrl: _readMapText(logo, 'url', ''),
+      logoAlt: _readMapText(logo, 'alt', fallback.logoAlt),
+    );
+  }
+}
+
 class BusinessHoursInterval {
   final int openMinutes;
   final int closeMinutes;
@@ -525,6 +613,7 @@ class ServiceProvider with ChangeNotifier {
   OrderPricingConfig _orderPricingConfig = OrderPricingConfig.fallback;
   PickupEtaConfig _pickupEtaConfig = PickupEtaConfig.fallback;
   BusinessHoursConfig _businessHoursConfig = BusinessHoursConfig.fallback;
+  StoreProfileConfig _storeProfileConfig = StoreProfileConfig.fallback;
   late ApiService _apiService;
 
   bool get isLoggedIn => _isLoggedIn;
@@ -542,6 +631,9 @@ class ServiceProvider with ChangeNotifier {
   OrderPricingConfig get orderPricingConfig => _orderPricingConfig;
   PickupEtaConfig get pickupEtaConfig => _pickupEtaConfig;
   BusinessHoursConfig get businessHoursConfig => _businessHoursConfig;
+  StoreProfileConfig get storeProfileConfig => _storeProfileConfig;
+  String get storeLogoUrl =>
+      _resolveProductImagePath(_storeProfileConfig.logoUrl);
   String get restaurantStatusLabel {
     final status = _businessHoursConfig.statusLabel();
     final pickup = _businessHoursConfig.isOpenNow
@@ -2107,6 +2199,7 @@ class ServiceProvider with ChangeNotifier {
         _orderPricingConfig = OrderPricingConfig.fromSystemConfigs(configs);
         _pickupEtaConfig = PickupEtaConfig.fromSystemConfigs(configs);
         _businessHoursConfig = BusinessHoursConfig.fromSystemConfigs(configs);
+        _storeProfileConfig = StoreProfileConfig.fromSystemConfigs(configs);
         notifyListeners();
         debugPrint(
           'Order system config loaded: '
@@ -2115,7 +2208,8 @@ class ServiceProvider with ChangeNotifier {
           'service=${_orderPricingConfig.deliveryServiceFee}, '
           'tax=${_orderPricingConfig.taxRate}, '
           'pickup=${_pickupEtaConfig.display}, '
-          'business=${_businessHoursConfig.statusLabel()}',
+          'business=${_businessHoursConfig.statusLabel()}, '
+          'store=${_storeProfileConfig.name}',
         );
       }
     } on AppException catch (e) {
