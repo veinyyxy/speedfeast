@@ -51,6 +51,27 @@ class ApiService {
     );
   }
 
+  Map<String, dynamic> _normalizeJsonMap(Map<String, dynamic> value) {
+    return value.map((key, value) => MapEntry(key, _normalizeJsonValue(value)));
+  }
+
+  dynamic _normalizeJsonValue(dynamic value) {
+    if (value is Map) {
+      return value.map<String, dynamic>(
+        (key, value) => MapEntry(key.toString(), _normalizeJsonValue(value)),
+      );
+    }
+    if (value is List) {
+      return value.map(_normalizeJsonValue).toList(growable: false);
+    }
+    if (value is double &&
+        value.isFinite &&
+        value == value.truncateToDouble()) {
+      return value.toInt();
+    }
+    return value;
+  }
+
   // **辅助函数：获取签名（假设这个函数存在于 make_request_header.dart 或类似地方）**
   // 我将它放在这里以完成示例，实际中应从 make_request_header.dart 导入
   /*String generateSignature(String data, String secretKey) {
@@ -125,12 +146,13 @@ class ApiService {
     }
 
     final uri = Uri.parse('$_baseUrl$path');
-    final encodedBody = jsonEncode(body);
+    final normalizedBody = _normalizeJsonMap(body);
+    final encodedBody = jsonEncode(normalizedBody);
 
     // 生成签名所需的 dataToSign 应该包含 encodedBody
     // 这可能需要修改 generateSignature 来处理请求体
     final Map<String, String> headers = _createRequestHeaders(
-      body,
+      normalizedBody,
       1,
     ); // 假设签名也包含了body
     headers['Content-Type'] = 'application/json';

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Common/order_item.dart';
-import '../Common/payment_redirect.dart';
+import '../Common/payment_launcher.dart';
+import '../Common/payment_session.dart';
 import '../Common/product_category_list.dart';
 import '../Common/product_detail.dart';
 import '../Controller/service_provider.dart';
@@ -1309,9 +1310,12 @@ class _OrderPageState extends State<OrderPage> {
         );
         if (!mounted) return;
 
-        final checkoutUrl =
-            paymentResponse?['checkout_url']?.toString().trim() ?? '';
-        if (paymentResponse == null || checkoutUrl.isEmpty) {
+        final paymentSession = paymentResponse == null
+            ? null
+            : PaymentSession.fromJson(
+                Map<String, dynamic>.from(paymentResponse),
+              );
+        if (paymentSession == null || !paymentSession.canLaunch) {
           final paymentError =
               serviceProvider.lastPaymentError ??
               'Payment could not be started.';
@@ -1325,15 +1329,19 @@ class _OrderPageState extends State<OrderPage> {
           return;
         }
 
-        final opened = await openExternalPaymentUrl(checkoutUrl);
+        final opened = await launchPaymentSession(paymentSession);
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               opened
-                  ? 'Opening secure payment page...'
-                  : 'Order created. Open this payment URL: $checkoutUrl',
+                  ? paymentSession.isPaymentSheet
+                        ? 'Payment submitted. You can view the order in Recent Orders.'
+                        : 'Opening secure payment page...'
+                  : paymentSession.isPaymentSheet
+                  ? 'Payment was not completed.'
+                  : 'Order created. Open this payment URL: ${paymentSession.checkoutUrl}',
             ),
           ),
         );
@@ -2385,7 +2393,9 @@ class _OrderPageState extends State<OrderPage> {
                             ),
                           ),
                         ),
-                      Row(
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 4,
                         children: [
                           TextButton(
                             onPressed: () => _editOrderItem(item),
@@ -2403,7 +2413,6 @@ class _OrderPageState extends State<OrderPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 14),
                           TextButton(
                             onPressed: () =>
                                 _updateQuantity(item.id, -item.quantity),

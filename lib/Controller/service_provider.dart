@@ -653,6 +653,36 @@ class ServiceProvider with ChangeNotifier {
   String get dineInTableToken =>
       _dineInTableContext?['table_token']?.toString() ?? '';
 
+  bool _isInvalidSignatureError(AppException error) {
+    return error.statusCode == 401 &&
+        error.message.toLowerCase().contains('invalid signature');
+  }
+
+  String get _paymentPlatform {
+    if (kIsWeb) return 'web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
+  }
+
+  String get _paymentFlow {
+    final platform = _paymentPlatform;
+    return platform == 'android' || platform == 'ios'
+        ? 'payment_sheet'
+        : 'redirect';
+  }
+
   Map<String, String> features = {};
   bool _isInitialized = false;
 
@@ -1347,11 +1377,12 @@ class ServiceProvider with ChangeNotifier {
       debugPrint('Server indicated order failure: $errorMessage');
       return null;
     } on AppException catch (e) {
-      _lastOrderError = e.statusCode == 401
+      final isInvalidSignature = _isInvalidSignatureError(e);
+      _lastOrderError = e.statusCode == 401 && !isInvalidSignature
           ? 'Login expired. Please log in again.'
           : e.message;
       debugPrint('Error creating order: ${e.message}');
-      if (e.statusCode == 401) {
+      if (e.statusCode == 401 && !isInvalidSignature) {
         await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
@@ -1389,11 +1420,13 @@ class ServiceProvider with ChangeNotifier {
       debugPrint(
         'Creating payment: ${_config!.getBaseUrl()}${_config!.getCreatePaymentPath()}',
       );
-      final rawResponse = await _apiService.post(
-        _config!.getCreatePaymentPath(),
-        <String, dynamic>{'order_id': normalizedOrderId, 'provider': provider},
-        token: _userToken,
-      );
+      final rawResponse = await _apiService
+          .post(_config!.getCreatePaymentPath(), <String, dynamic>{
+            'order_id': normalizedOrderId,
+            'provider': provider,
+            'platform': _paymentPlatform,
+            'flow': _paymentFlow,
+          }, token: _userToken);
 
       if (rawResponse is Map) {
         final responseData = _asStringKeyedMap(rawResponse);
@@ -1410,11 +1443,12 @@ class ServiceProvider with ChangeNotifier {
       _lastPaymentError = 'Unexpected response while creating payment.';
       return null;
     } on AppException catch (e) {
-      _lastPaymentError = e.statusCode == 401
+      final isInvalidSignature = _isInvalidSignatureError(e);
+      _lastPaymentError = e.statusCode == 401 && !isInvalidSignature
           ? 'Login expired. Please log in again.'
           : e.message;
       debugPrint('Error creating payment: ${e.message}');
-      if (e.statusCode == 401) {
+      if (e.statusCode == 401 && !isInvalidSignature) {
         await _clearUserSessionAndLoadGuestCart();
         notifyListeners();
       }
