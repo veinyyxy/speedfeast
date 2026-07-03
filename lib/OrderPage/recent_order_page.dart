@@ -1133,6 +1133,7 @@ class RecentOrder {
     required this.itemCount,
     required this.fulfillmentType,
     required this.shippingAddress,
+    required this.hasPaymentRecord,
     required this.paymentMethod,
     required this.paymentStatus,
     required this.rewardDiscount,
@@ -1164,6 +1165,7 @@ class RecentOrder {
   final int itemCount;
   final String fulfillmentType;
   final String shippingAddress;
+  final bool hasPaymentRecord;
   final String paymentMethod;
   final String paymentStatus;
   final double rewardDiscount;
@@ -1185,7 +1187,11 @@ class RecentOrder {
 
   String get fulfillmentLabel => _humanize(fulfillmentType);
 
-  String get paymentStatusLabel => _humanize(paymentStatus);
+  String get paymentStatusLabel {
+    if (!hasPaymentRecord) return 'Not started (no payment record)';
+    final label = _humanize(paymentStatus);
+    return label.isEmpty ? 'Status unavailable' : label;
+  }
 
   bool get hasRefund => refundedAmount > 0.005;
 
@@ -1378,6 +1384,7 @@ class RecentOrder {
           'address',
         ]),
       ),
+      hasPaymentRecord: paymentValue is Map && paymentMap.isNotEmpty,
       paymentMethod: _formatPayment(
         _firstValue(json, const [
           'payment_method',
