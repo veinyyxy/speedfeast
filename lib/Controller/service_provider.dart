@@ -676,13 +676,6 @@ class ServiceProvider with ChangeNotifier {
     }
   }
 
-  String get _paymentFlow {
-    final platform = _paymentPlatform;
-    return platform == 'android' || platform == 'ios'
-        ? 'payment_sheet'
-        : 'redirect';
-  }
-
   Map<String, String> features = {};
   bool _isInitialized = false;
 
@@ -1394,10 +1387,7 @@ class ServiceProvider with ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>?> createPayment({
-    required String orderId,
-    String provider = 'stripe',
-  }) async {
+  Future<Map<String, dynamic>?> createPayment({required String orderId}) async {
     final normalizedOrderId = orderId.trim();
     if (_config == null) {
       _lastPaymentError = 'Service config is not loaded.';
@@ -1420,13 +1410,14 @@ class ServiceProvider with ChangeNotifier {
       debugPrint(
         'Creating payment: ${_config!.getBaseUrl()}${_config!.getCreatePaymentPath()}',
       );
-      final rawResponse = await _apiService
-          .post(_config!.getCreatePaymentPath(), <String, dynamic>{
-            'order_id': normalizedOrderId,
-            'provider': provider,
-            'platform': _paymentPlatform,
-            'flow': _paymentFlow,
-          }, token: _userToken);
+      final rawResponse = await _apiService.post(
+        _config!.getCreatePaymentPath(),
+        <String, dynamic>{
+          'order_id': normalizedOrderId,
+          'platform': _paymentPlatform,
+        },
+        token: _userToken,
+      );
 
       if (rawResponse is Map) {
         final responseData = _asStringKeyedMap(rawResponse);

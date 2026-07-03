@@ -1916,9 +1916,15 @@ class _OrderPageState extends State<OrderPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                const Text(
-                                  'Loading delivery address...',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                const Expanded(
+                                  child: Text(
+                                    'Loading delivery address...',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ],
                             )
@@ -1927,12 +1933,16 @@ class _OrderPageState extends State<OrderPage> {
                               children: [
                                 Text(
                                   addressTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 Text(
                                   addressDetail,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey[700],
