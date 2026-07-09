@@ -78,10 +78,10 @@ class MoreScreen extends StatelessWidget {
       'action': (BuildContext context) => debugPrint('About Rewards clicked!'),
     },
     {
-      'title': 'Marketing Notifications',
+      'title': 'Notifications',
       'icon': Icons.notifications_none,
       'action': (BuildContext context) =>
-          debugPrint('Marketing Notifications clicked!'),
+          Navigator.pushNamed(context, '/notifications'),
     },
     {
       'title': 'Get Help',

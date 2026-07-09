@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Controller/service_provider.dart';
 
 import 'home_page_exclusive2.dart';
+import 'Notifications/buyer_notification_router.dart';
+import 'Notifications/buyer_notification_service.dart';
+import 'Notifications/notification_center_page.dart';
 import 'OrderPage/order_page.dart';
 import 'OrderPage/recent_order_page.dart';
 import 'OrderPage/dine_in_scan_page.dart';
@@ -17,13 +21,22 @@ import 'RegisterPage/verification_page.dart';
 import 'RegisterPage/mobile_number_page.dart';
 import 'RegisterPage/base_info_page.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FirebaseMessaging.onBackgroundMessage(
+    buyerFirebaseMessagingBackgroundHandler,
+  );
   // 加载 .env 文件
   await dotenv.load(fileName: "assets/configs/.env");
 
   final serviceProvider = ServiceProvider();
   await serviceProvider.initialize();
+  await BuyerNotificationService.instance.initialize(
+    onToken: serviceProvider.registerBuyerNotificationDeviceToken,
+    onTap: (intent) => BuyerNotificationRouter.handle(appNavigatorKey, intent),
+  );
   //await serviceProvider.loadConfig();
   //await serviceProvider.fetchInitData();
 
@@ -39,6 +52,7 @@ class MyApp extends StatelessWidget {
     const primaryColor = Colors.lightBlue;
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // 将主色调改为 DeepOrange
@@ -112,6 +126,7 @@ class MyApp extends StatelessWidget {
       ),
       routes: {
         '/': (context) => HomePage(),
+        '/notifications': (context) => const NotificationCenterPage(),
         '/order_page': (context) => OrderPage(),
         '/order_page/recent_orders': (context) => RecentOrdersPage(),
         '/dine_in_scan': (context) => DineInScanPage(),

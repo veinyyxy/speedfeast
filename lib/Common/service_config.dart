@@ -161,4 +161,30 @@ class ServiceConfig {
       _path('deletePaymentMethod', '/api/payment-methods/delete');
   String setDefaultPaymentMethodPath() =>
       _path('setDefaultPaymentMethod', '/api/payment-methods/default');
+  String listBuyerNotificationsPath() =>
+      _path('listBuyerNotifications', '/api/buyer/notifications');
+  String buyerNotificationUnreadCountPath() => _path(
+    'buyerNotificationUnreadCount',
+    '/api/buyer/notifications/unread-count',
+  );
+  String registerBuyerNotificationTokenPath() => _path(
+    'registerBuyerNotificationToken',
+    '/api/buyer/notifications/device-token',
+  );
+  String deactivateBuyerNotificationTokenPath() => _path(
+    'deactivateBuyerNotificationToken',
+    '/api/buyer/notifications/device-token/deactivate',
+  );
+  String markBuyerNotificationReadPath(String notificationId) =>
+      '${_path('markBuyerNotificationRead', '/api/buyer/notifications')}/${Uri.encodeComponent(notificationId)}/read';
+  String deleteBuyerNotificationPath(String notificationId) =>
+      '${_path('deleteBuyerNotification', '/api/buyer/notifications')}/${Uri.encodeComponent(notificationId)}/delete';
+  String markAllBuyerNotificationsReadPath() => _path(
+    'markAllBuyerNotificationsRead',
+    '/api/buyer/notifications/read-all',
+  );
+  String deleteReadBuyerNotificationsPath() => _path(
+    'deleteReadBuyerNotifications',
+    '/api/buyer/notifications/delete-read',
+  );
 }

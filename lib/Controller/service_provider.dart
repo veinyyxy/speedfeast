@@ -1,5 +1,6 @@
 // E:/flutter_project/speedfeast/lib/Controller/service_provider.dart
 import 'dart:convert';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -9,6 +10,7 @@ import '../Common/service_config.dart';
 import 'api_service.dart';
 import '../Security/collect_features.dart';
 import '../Common/order_item.dart';
+import '../Notifications/buyer_notification_service.dart';
 
 class OrderPricingConfig {
   final String currency;
@@ -595,6 +597,8 @@ class ServiceProvider with ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   static const String _guestCartStorageKey = 'speedfeast_cart_guest';
   static const String _userCartStoragePrefix = 'speedfeast_cart_user_';
+  static const String _notificationDeviceIdKey =
+      'speedfeast_notification_device_id';
 
   ServiceConfig? _config;
   dynamic _initData;
@@ -608,6 +612,7 @@ class ServiceProvider with ChangeNotifier {
   String? _lastReviewError;
   String? _lastDineInError;
   String? _lastLoginError;
+  String? _lastNotificationsError;
   String _selectedFulfillmentType = 'delivery';
   Map<String, dynamic>? _dineInTableContext;
   OrderPricingConfig _orderPricingConfig = OrderPricingConfig.fallback;
@@ -627,6 +632,7 @@ class ServiceProvider with ChangeNotifier {
   String? get lastReviewError => _lastReviewError;
   String? get lastDineInError => _lastDineInError;
   String? get lastLoginError => _lastLoginError;
+  String? get lastNotificationsError => _lastNotificationsError;
   String get selectedFulfillmentType => _selectedFulfillmentType;
   OrderPricingConfig get orderPricingConfig => _orderPricingConfig;
   PickupEtaConfig get pickupEtaConfig => _pickupEtaConfig;
@@ -2053,6 +2059,7 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
     debugPrint('User logged in. Token stored securely.');
     await fetchInitData();
+    await BuyerNotificationService.instance.registerCurrentToken();
   }
 
   Future<void> _clearUserSessionAndLoadGuestCart() async {
@@ -2180,6 +2187,11 @@ class ServiceProvider with ChangeNotifier {
   }
 
   Future<void> logoutUser() async {
+    final notificationToken = await BuyerNotificationService.instance
+        .currentToken();
+    if (notificationToken != null && notificationToken.trim().isNotEmpty) {
+      await deactivateBuyerNotificationDeviceToken(notificationToken);
+    }
     await _clearUserSessionAndLoadGuestCart();
     notifyListeners();
     debugPrint('User logged out. Token removed from secure storage.');
@@ -2791,6 +2803,240 @@ class ServiceProvider with ChangeNotifier {
         'An unexpected error occurred while setting default payment method: $e',
       );
       return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBuyerNotifications({
+    int limit = 30,
+    int offset = 0,
+    bool unreadOnly = false,
+  }) async {
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      _lastNotificationsError = 'Please log in to view notifications.';
+      debugPrint('Cannot fetch notifications: config or token is missing.');
+      return [];
+    }
+
+    try {
+      _lastNotificationsError = null;
+      final rawResponse = await _apiService.get(
+        _config!.listBuyerNotificationsPath(),
+        queryParameters: <String, dynamic>{
+          'limit': limit,
+          'offset': offset,
+          if (unreadOnly) 'unread_only': true,
+        },
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      if (responseData['success'] != true) {
+        _lastNotificationsError =
+            responseData['error']?.toString() ??
+            responseData['message']?.toString() ??
+            'Notifications could not be loaded.';
+        return [];
+      }
+
+      final notifications = responseData['notifications'] as List? ?? [];
+      return notifications
+          .whereType<Map>()
+          .map(_asStringKeyedMap)
+          .toList(growable: false);
+    } on AppException catch (e) {
+      _lastNotificationsError = e.statusCode == 401
+          ? 'Login expired. Please log in again.'
+          : e.message;
+      debugPrint('Error fetching buyer notifications: ${e.message}');
+      if (e.statusCode == 401) {
+        await _clearUserSessionAndLoadGuestCart();
+        notifyListeners();
+      }
+      return [];
+    } catch (e) {
+      _lastNotificationsError = 'Failed to load notifications.';
+      debugPrint('An unexpected error occurred fetching notifications: $e');
+      return [];
+    }
+  }
+
+  Future<int> fetchBuyerNotificationUnreadCount() async {
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return 0;
+    }
+
+    try {
+      final rawResponse = await _apiService.get(
+        _config!.buyerNotificationUnreadCountPath(),
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      final value =
+          responseData['unread_count'] ?? responseData['unreadCount'] ?? 0;
+      return int.tryParse(value.toString()) ?? 0;
+    } catch (e) {
+      debugPrint('Unable to fetch notification unread count: $e');
+      return 0;
+    }
+  }
+
+  Future<bool> registerBuyerNotificationDeviceToken(String fcmToken) async {
+    final token = fcmToken.trim();
+    if (token.isEmpty) return false;
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      debugPrint(
+        'Notification token registration skipped: user not logged in.',
+      );
+      return false;
+    }
+
+    try {
+      _lastNotificationsError = null;
+      final packageInfo = await _safePackageInfo();
+      final deviceId = await _notificationDeviceId();
+      final rawResponse = await _apiService.post(
+        _config!.registerBuyerNotificationTokenPath(),
+        <String, dynamic>{
+          'fcm_token': token,
+          'token': token,
+          'platform': _paymentPlatform,
+          'device_id': deviceId,
+          'metadata': <String, dynamic>{
+            'device_id': deviceId,
+            if (packageInfo != null) 'app_name': packageInfo.appName,
+            if (packageInfo != null) 'package_name': packageInfo.packageName,
+            if (packageInfo != null) 'app_version': packageInfo.version,
+            if (packageInfo != null) 'build_number': packageInfo.buildNumber,
+          },
+        },
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      _lastNotificationsError = 'Unable to register this device.';
+      debugPrint('Unable to register notification token: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deactivateBuyerNotificationDeviceToken(String fcmToken) async {
+    final token = fcmToken.trim();
+    if (token.isEmpty) return false;
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.deactivateBuyerNotificationTokenPath(),
+        <String, dynamic>{'fcm_token': token, 'token': token},
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      debugPrint('Unable to deactivate notification token: $e');
+      return false;
+    }
+  }
+
+  Future<bool> markBuyerNotificationRead(String notificationId) async {
+    final id = notificationId.trim();
+    if (id.isEmpty) return false;
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.markBuyerNotificationReadPath(id),
+        <String, dynamic>{},
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      debugPrint('Unable to mark notification read: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteBuyerNotification(String notificationId) async {
+    final id = notificationId.trim();
+    if (id.isEmpty) return false;
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.deleteBuyerNotificationPath(id),
+        <String, dynamic>{},
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      debugPrint('Unable to delete notification: $e');
+      return false;
+    }
+  }
+
+  Future<bool> markAllBuyerNotificationsRead() async {
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.markAllBuyerNotificationsReadPath(),
+        <String, dynamic>{},
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      debugPrint('Unable to mark all notifications read: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteReadBuyerNotifications() async {
+    if (_config == null || _userToken == null || _userToken!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final rawResponse = await _apiService.post(
+        _config!.deleteReadBuyerNotificationsPath(),
+        <String, dynamic>{},
+        token: _userToken,
+      );
+      final responseData = _asStringKeyedMap(rawResponse as Map);
+      return responseData['success'] == true;
+    } catch (e) {
+      debugPrint('Unable to delete read notifications: $e');
+      return false;
+    }
+  }
+
+  Future<String> _notificationDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_notificationDeviceIdKey);
+    if (existing != null && existing.trim().isNotEmpty) return existing;
+
+    final generated =
+        'buyer-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
+    await prefs.setString(_notificationDeviceIdKey, generated);
+    return generated;
+  }
+
+  Future<PackageInfo?> _safePackageInfo() async {
+    try {
+      return PackageInfo.fromPlatform();
+    } catch (e) {
+      debugPrint('Unable to read package info: $e');
+      return null;
     }
   }
 

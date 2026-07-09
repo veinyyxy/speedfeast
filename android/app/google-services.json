@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "46671696841",
+    "project_id": "speedfeast-marchent",
+    "storage_bucket": "speedfeast-marchent.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46671696841:android:18f5daf663d867f1ba0e18",
+        "android_client_info": {
+          "package_name": "com.techlong.speedfeast"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-PsYoo1EJqLybmUqlVJWIrz37USIvWxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46671696841:android:150529ac181b91baba0e18",
+        "android_client_info": {
+          "package_name": "com.techlong.speedfestmerchant.speedfest_merchant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-PsYoo1EJqLybmUqlVJWIrz37USIvWxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
