@@ -122,32 +122,33 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   @override
   Widget build(BuildContext context) {
     final serviceProvider = context.watch<ServiceProvider>();
-    final title = _unreadCount > 0
-        ? 'Notifications ($_unreadCount)'
-        : 'Notifications';
+    final hasReadNotifications = _notifications.any(
+      (notification) => notification.isRead,
+    );
+    final canMarkAllRead = !_isMutating && !_isLoading && _unreadCount > 0;
+    final canClearRead = !_isMutating && !_isLoading && hasReadNotifications;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: const Text('Notifications'),
         actions: [
-          IconButton(
-            tooltip: 'Mark all read',
-            onPressed: _isMutating || _notifications.isEmpty
-                ? null
-                : _markAllRead,
-            icon: const Icon(Icons.done_all),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete_read') _deleteRead();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'delete_read',
-                child: Text('Delete read notifications'),
-              ),
-            ],
-          ),
+          if (serviceProvider.isLoggedIn) ...[
+            IconButton(
+              tooltip: 'Mark all read',
+              onPressed: canMarkAllRead ? _markAllRead : null,
+              icon: const Icon(Icons.done_all),
+            ),
+            IconButton(
+              tooltip: 'Clear read',
+              onPressed: canClearRead ? _deleteRead : null,
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _isLoading || _isMutating ? null : _loadNotifications,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
         ],
       ),
       body: Stack(

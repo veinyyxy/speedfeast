@@ -14,10 +14,13 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late ScrollController _scrollController;
   Color _appBarColor = Colors.white;
   int _selectedIndex = 0;
+  int _notificationUnreadCount = 0;
+  bool _isRefreshingNotificationCount = false;
+  bool? _lastNotificationLoginState;
 
   // 购物车按钮位置
   Offset? _fabPosition;
@@ -41,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
   }
@@ -216,6 +220,8 @@ class _HomePageState extends State<HomePage> {
       );
       if (!mounted) return;
       if (loggedIn == true) {
+        await _refreshNotificationUnreadCount();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Signed in successfully.')),
         );
@@ -295,13 +301,82 @@ class _HomePageState extends State<HomePage> {
     if (confirmed != true || !mounted) return;
     await context.read<ServiceProvider>().logoutUser();
     if (!mounted) return;
+    setState(() {
+      _notificationUnreadCount = 0;
+      _lastNotificationLoginState = false;
+    });
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Signed out.')));
   }
 
+  Future<void> _openNotifications() async {
+    var isLoggedIn = context.read<ServiceProvider>().isLoggedIn;
+    if (!isLoggedIn) {
+      final loggedIn = await showLoginDialog(
+        context,
+        reason: LoginPromptReason.account,
+      );
+      if (!mounted || loggedIn != true) return;
+      isLoggedIn = true;
+    }
+
+    if (!isLoggedIn) return;
+    await Navigator.pushNamed(context, '/notifications');
+    if (mounted) {
+      await _refreshNotificationUnreadCount();
+    }
+  }
+
+  void _syncNotificationCountForLoginState(bool isLoggedIn) {
+    if (_lastNotificationLoginState == isLoggedIn) return;
+    _lastNotificationLoginState = isLoggedIn;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (isLoggedIn) {
+        _refreshNotificationUnreadCount();
+      } else if (_notificationUnreadCount != 0) {
+        setState(() => _notificationUnreadCount = 0);
+      }
+    });
+  }
+
+  Future<void> _refreshNotificationUnreadCount() async {
+    if (_isRefreshingNotificationCount) return;
+    final serviceProvider = context.read<ServiceProvider>();
+    if (!serviceProvider.isLoggedIn) {
+      if (mounted && _notificationUnreadCount != 0) {
+        setState(() => _notificationUnreadCount = 0);
+      }
+      return;
+    }
+
+    _isRefreshingNotificationCount = true;
+    try {
+      final unreadCount = await serviceProvider
+          .fetchBuyerNotificationUnreadCount();
+      if (!mounted) return;
+      final latestLoggedIn = context.read<ServiceProvider>().isLoggedIn;
+      setState(() {
+        _notificationUnreadCount = latestLoggedIn ? unreadCount : 0;
+      });
+    } finally {
+      _isRefreshingNotificationCount = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshNotificationUnreadCount();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
@@ -402,6 +477,71 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationBell({required bool isLoggedIn}) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final unreadCount = isLoggedIn ? _notificationUnreadCount : 0;
+    final badgeText = unreadCount > 99 ? '99+' : unreadCount.toString();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: Material(
+                color: isLoggedIn
+                    ? primaryColor.withValues(alpha: 0.10)
+                    : Colors.black.withValues(alpha: 0.08),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: 'Notifications',
+                  icon: Icon(
+                    unreadCount > 0
+                        ? Icons.notifications
+                        : Icons.notifications_none,
+                    size: 21,
+                    color: isLoggedIn ? primaryColor : Colors.black87,
+                  ),
+                  onPressed: _openNotifications,
+                ),
+              ),
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade600,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    badgeText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -635,9 +775,11 @@ class _HomePageState extends State<HomePage> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final serviceProvider = context.watch<ServiceProvider>();
     final isLoggedIn = serviceProvider.isLoggedIn;
+    _syncNotificationCountForLoginState(isLoggedIn);
     final cartCount = serviceProvider.cartCount;
     final cartSubtotal = serviceProvider.cartSubtotal;
     final cartFabPosition = _effectiveFabPosition(context);
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 380;
 
     return Scaffold(
       extendBody: true,
@@ -662,7 +804,7 @@ class _HomePageState extends State<HomePage> {
                 elevation: 0,
                 forceElevated: false,
                 automaticallyImplyLeading: false,
-                leadingWidth: 190,
+                leadingWidth: isCompactWidth ? 156 : 190,
                 leading: Padding(
                   padding: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
                   child: Image.asset(
@@ -677,7 +819,9 @@ class _HomePageState extends State<HomePage> {
                     isLoggedIn: isLoggedIn,
                     useDarkText: true,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 6),
+                  _buildNotificationBell(isLoggedIn: isLoggedIn),
+                  const SizedBox(width: 10),
                   if (_showSearchButton)
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -783,7 +927,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.shopping_bag),
-                    label: 'Order',
+                    label: 'Orders',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.qr_code_scanner),

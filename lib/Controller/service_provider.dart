@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Common/service_config.dart';
+import '../Common/user_preferences.dart';
 import 'api_service.dart';
 import '../Security/collect_features.dart';
 import '../Common/order_item.dart';
@@ -619,6 +620,7 @@ class ServiceProvider with ChangeNotifier {
   PickupEtaConfig _pickupEtaConfig = PickupEtaConfig.fallback;
   BusinessHoursConfig _businessHoursConfig = BusinessHoursConfig.fallback;
   StoreProfileConfig _storeProfileConfig = StoreProfileConfig.fallback;
+  UserPreferences _userPreferences = UserPreferences.empty();
   late ApiService _apiService;
 
   bool get isLoggedIn => _isLoggedIn;
@@ -634,6 +636,8 @@ class ServiceProvider with ChangeNotifier {
   String? get lastLoginError => _lastLoginError;
   String? get lastNotificationsError => _lastNotificationsError;
   String get selectedFulfillmentType => _selectedFulfillmentType;
+  RecentOrdersPreferences get recentOrdersPreferences =>
+      _userPreferences.recentOrders;
   OrderPricingConfig get orderPricingConfig => _orderPricingConfig;
   PickupEtaConfig get pickupEtaConfig => _pickupEtaConfig;
   BusinessHoursConfig get businessHoursConfig => _businessHoursConfig;
@@ -689,6 +693,9 @@ class ServiceProvider with ChangeNotifier {
   final List<OrderItem> _cartItems = [];
   String _activeCartStorageKey = _guestCartStorageKey;
   bool _hasLoadedCart = false;
+  String _activeUserPreferencesStorageKey =
+      UserPreferencesStore.guestStorageKey;
+  bool _hasLoadedUserPreferences = false;
   List<OrderItem> get cartItems => _cartItems;
 
   int get cartCount => _cartItems.fold(0, (sum, item) => sum + item.quantity);
@@ -792,6 +799,36 @@ class ServiceProvider with ChangeNotifier {
       await _saveCartForStorageKey(_activeCartStorageKey);
     }
     await _loadCartForStorageKey(_cartStorageKeyForToken(token));
+  }
+
+  String _userPreferencesStorageKeyForToken(String? token) {
+    return UserPreferencesStore.storageKeyForUserId(_userIdFromToken(token));
+  }
+
+  Future<void> _loadUserPreferencesForStorageKey(String storageKey) async {
+    _userPreferences = await UserPreferencesStore.load(storageKey);
+    _activeUserPreferencesStorageKey = storageKey;
+    _hasLoadedUserPreferences = true;
+    _selectedFulfillmentType = _normalizeSelectedFulfillmentType(
+      _userPreferences.fulfillmentType,
+    );
+  }
+
+  Future<void> _saveUserPreferencesForStorageKey(String storageKey) async {
+    await UserPreferencesStore.save(storageKey, _userPreferences);
+  }
+
+  void _persistUserPreferencesForActiveUser() {
+    _saveUserPreferencesForStorageKey(_activeUserPreferencesStorageKey);
+  }
+
+  Future<void> _switchUserPreferencesForToken(String? token) async {
+    if (_hasLoadedUserPreferences) {
+      await _saveUserPreferencesForStorageKey(_activeUserPreferencesStorageKey);
+    }
+    await _loadUserPreferencesForStorageKey(
+      _userPreferencesStorageKeyForToken(token),
+    );
   }
 
   bool _refreshCartItemsFromProductData({bool persist = true}) {
@@ -1173,19 +1210,39 @@ class ServiceProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void setSelectedFulfillmentType(String fulfillmentType) {
+  String _normalizeSelectedFulfillmentType(String fulfillmentType) {
     final normalized = fulfillmentType.trim().toLowerCase().replaceAll(
       '-',
       '_',
     );
-    final nextType = switch (normalized) {
+    return switch (normalized) {
       'dine_in' => 'dine_in',
       'takeout' || 'take_out' => 'takeout',
       _ => 'delivery',
     };
+  }
+
+  void setSelectedFulfillmentType(String fulfillmentType) {
+    final nextType = _normalizeSelectedFulfillmentType(fulfillmentType);
 
     if (_selectedFulfillmentType == nextType) return;
     _selectedFulfillmentType = nextType;
+    _userPreferences = _userPreferences.copyWithFulfillmentType(nextType);
+    _persistUserPreferencesForActiveUser();
+    notifyListeners();
+  }
+
+  void setRecentOrdersDateFilter({
+    required String dateFilter,
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) {
+    _userPreferences = _userPreferences.copyWithRecentOrders(
+      dateFilter: dateFilter,
+      customStart: customStart,
+      customEnd: customEnd,
+    );
+    _persistUserPreferencesForActiveUser();
     notifyListeners();
   }
 
@@ -1230,6 +1287,10 @@ class ServiceProvider with ChangeNotifier {
 
           _dineInTableContext = table;
           _selectedFulfillmentType = 'dine_in';
+          _userPreferences = _userPreferences.copyWithFulfillmentType(
+            'dine_in',
+          );
+          _persistUserPreferencesForActiveUser();
           notifyListeners();
           return table;
         }
@@ -2042,6 +2103,7 @@ class ServiceProvider with ChangeNotifier {
     final hasStoredToken = _userToken != null && _userToken!.isNotEmpty;
     _isLoggedIn = trustStoredToken && hasStoredToken;
     await _switchCartStorageForToken(_userToken);
+    await _switchUserPreferencesForToken(_userToken);
     debugPrint(
       'User status loaded: isLoggedIn=$_isLoggedIn, token=${hasStoredToken ? "exists" : "null"}',
     );
@@ -2053,6 +2115,7 @@ class ServiceProvider with ChangeNotifier {
   Future<void> saveUserToken(String token) async {
     _registrationToken = null;
     await _switchCartStorageForToken(token);
+    await _switchUserPreferencesForToken(token);
     await _secureStorage.write(key: 'user_token', value: token);
     _userToken = token;
     _isLoggedIn = true;
@@ -2065,6 +2128,7 @@ class ServiceProvider with ChangeNotifier {
   Future<void> _clearUserSessionAndLoadGuestCart() async {
     _registrationToken = null;
     await _switchCartStorageForToken(null);
+    await _switchUserPreferencesForToken(null);
     await _secureStorage.delete(key: 'user_token');
     _userToken = null;
     _isLoggedIn = false;

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../Common/user_preferences.dart';
 import '../Controller/service_provider.dart';
 import '../RegisterPage/phone_login_page.dart';
 import 'order_review_page.dart';
+
+enum _RecentOrderDateFilter { all, today, threeDays, oneWeek, custom }
 
 class RecentOrdersPage extends StatefulWidget {
   const RecentOrdersPage({super.key});
@@ -16,19 +19,34 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
   Future<List<RecentOrder>>? _ordersFuture;
   bool? _lastLoginState;
   String? _cancellingOrderId;
+  _RecentOrderDateFilter _dateFilter = _RecentOrderDateFilter.all;
+  DateTimeRange? _customDateRange;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final isLoggedIn = context.watch<ServiceProvider>().isLoggedIn;
+    final serviceProvider = context.watch<ServiceProvider>();
+    final isLoggedIn = serviceProvider.isLoggedIn;
     if (_lastLoginState == isLoggedIn) return;
 
     _lastLoginState = isLoggedIn;
+    _loadSavedDateFilter(serviceProvider.recentOrdersPreferences);
     _ordersFuture = isLoggedIn ? _fetchOrders() : null;
   }
 
+  void _loadSavedDateFilter(RecentOrdersPreferences preferences) {
+    _dateFilter = _dateFilterFromStorageValue(preferences.dateFilter);
+    final customStart = preferences.customStart;
+    final customEnd = preferences.customEnd;
+    _customDateRange = customStart != null && customEnd != null
+        ? DateTimeRange(start: customStart, end: customEnd)
+        : null;
+  }
+
   Future<List<RecentOrder>> _fetchOrders() async {
-    final rawOrders = await context.read<ServiceProvider>().fetchRecentOrders();
+    final rawOrders = await context.read<ServiceProvider>().fetchRecentOrders(
+      limit: 100,
+    );
     return rawOrders.map(RecentOrder.fromJson).toList(growable: false);
   }
 
@@ -119,6 +137,87 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
     }
   }
 
+  Future<void> _selectCustomDateRange() async {
+    final now = DateTime.now();
+    final initialRange =
+        _customDateRange ??
+        DateTimeRange(
+          start: _startOfDay(now.subtract(const Duration(days: 6))),
+          end: _startOfDay(now),
+        );
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: initialRange,
+      firstDate: DateTime(now.year - 5, 1, 1),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      helpText: 'Select order dates',
+      saveText: 'Apply',
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _dateFilter = _RecentOrderDateFilter.custom;
+      _customDateRange = DateTimeRange(
+        start: _startOfDay(picked.start),
+        end: _startOfDay(picked.end),
+      );
+    });
+    _saveDateFilterPreference();
+  }
+
+  void _setDateFilter(_RecentOrderDateFilter filter) {
+    if (filter == _RecentOrderDateFilter.custom) {
+      _selectCustomDateRange();
+      return;
+    }
+    setState(() => _dateFilter = filter);
+    _saveDateFilterPreference();
+  }
+
+  void _saveDateFilterPreference() {
+    context.read<ServiceProvider>().setRecentOrdersDateFilter(
+      dateFilter: _dateFilterStorageValue(_dateFilter),
+      customStart: _customDateRange?.start,
+      customEnd: _customDateRange?.end,
+    );
+  }
+
+  List<RecentOrder> _filteredOrders(List<RecentOrder> orders) {
+    final range = _activeDateRange();
+    if (range == null) return orders;
+    final exclusiveEnd = _startOfDay(range.end).add(const Duration(days: 1));
+    return orders
+        .where((order) {
+          final placedAt = order.placedAt;
+          if (placedAt == null) return false;
+          return !placedAt.isBefore(range.start) &&
+              placedAt.isBefore(exclusiveEnd);
+        })
+        .toList(growable: false);
+  }
+
+  DateTimeRange? _activeDateRange() {
+    final now = DateTime.now();
+    final today = _startOfDay(now);
+    switch (_dateFilter) {
+      case _RecentOrderDateFilter.all:
+        return null;
+      case _RecentOrderDateFilter.today:
+        return DateTimeRange(start: today, end: today);
+      case _RecentOrderDateFilter.threeDays:
+        return DateTimeRange(
+          start: today.subtract(const Duration(days: 2)),
+          end: today,
+        );
+      case _RecentOrderDateFilter.oneWeek:
+        return DateTimeRange(
+          start: today.subtract(const Duration(days: 6)),
+          end: today,
+        );
+      case _RecentOrderDateFilter.custom:
+        return _customDateRange;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoggedIn = context.watch<ServiceProvider>().isLoggedIn;
@@ -188,14 +287,33 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
           );
         }
 
+        final filteredOrders = _filteredOrders(orders);
         return RefreshIndicator(
           onRefresh: _reloadOrders,
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
-            itemCount: orders.length,
+            itemCount: filteredOrders.length + 1,
             itemBuilder: (context, index) {
-              final order = orders[index];
+              if (index == 0) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _RecentOrderDateFilterBar(
+                      selectedFilter: _dateFilter,
+                      customRange: _customDateRange,
+                      onChanged: _setDateFilter,
+                    ),
+                    if (filteredOrders.isEmpty)
+                      _InlineEmptyOrdersMessage(
+                        title: 'No orders in this period',
+                        message: 'Try a wider date range.',
+                      ),
+                  ],
+                );
+              }
+
+              final order = filteredOrders[index - 1];
               return _OrderCard(
                 order: order,
                 isCancelling: _cancellingOrderId == order.id,
@@ -219,6 +337,92 @@ class _RecentOrdersPageState extends State<RecentOrdersPage> {
           'Your recent orders and delivery progress are linked to your account.',
       buttonLabel: 'Sign In',
       onPressed: _showLoginDialog,
+    );
+  }
+}
+
+class _RecentOrderDateFilterBar extends StatelessWidget {
+  const _RecentOrderDateFilterBar({
+    required this.selectedFilter,
+    required this.customRange,
+    required this.onChanged,
+  });
+
+  final _RecentOrderDateFilter selectedFilter;
+  final DateTimeRange? customRange;
+  final ValueChanged<_RecentOrderDateFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = <_RecentOrderDateFilter>[
+      _RecentOrderDateFilter.all,
+      _RecentOrderDateFilter.today,
+      _RecentOrderDateFilter.threeDays,
+      _RecentOrderDateFilter.oneWeek,
+      _RecentOrderDateFilter.custom,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: filters
+              .map((filter) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(_filterLabel(filter, customRange)),
+                    selected: selectedFilter == filter,
+                    onSelected: (_) => onChanged(filter),
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              })
+              .toList(growable: false),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineEmptyOrdersMessage extends StatelessWidget {
+  const _InlineEmptyOrdersMessage({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.manage_search,
+            color: Theme.of(context).colorScheme.primary,
+            size: 30,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black.withValues(alpha: 0.62)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1119,6 +1323,7 @@ class RecentOrder {
     required this.status,
     required this.timelineStatus,
     required this.dateLabel,
+    required this.placedAt,
     required this.currency,
     required this.totalAmount,
     required this.refundedAmount,
@@ -1151,6 +1356,7 @@ class RecentOrder {
   final String status;
   final String timelineStatus;
   final String dateLabel;
+  final DateTime? placedAt;
   final String currency;
   final double totalAmount;
   final double refundedAmount;
@@ -1215,15 +1421,15 @@ class RecentOrder {
       'orderItems',
       'products',
     ]).map(RecentOrderItem.fromJson).toList(growable: false);
-    final dateLabel = _formatDate(
-      _firstValue(json, const [
-        'created_at',
-        'createdAt',
-        'order_date',
-        'orderDate',
-        'date',
-      ]),
-    );
+    final rawDate = _firstValue(json, const [
+      'created_at',
+      'createdAt',
+      'order_date',
+      'orderDate',
+      'date',
+    ]);
+    final placedAt = _parseDateTime(rawDate);
+    final dateLabel = _formatDate(rawDate);
     final paymentValue = _firstValue(json, const ['payment']);
     final paymentMap = paymentValue is Map
         ? paymentValue.map<String, dynamic>(
@@ -1353,6 +1559,7 @@ class RecentOrder {
       status: _humanize(rawStatus),
       timelineStatus: _humanize(rawTimelineStatus),
       dateLabel: dateLabel.isEmpty ? 'Date unavailable' : dateLabel,
+      placedAt: placedAt,
       currency: _firstString(json, const ['currency'], fallback: 'CAD'),
       totalAmount: totalAmount,
       refundedAmount: refundedAmount,
@@ -1694,21 +1901,83 @@ bool _isFulfillmentProgressStatus(String status) {
       normalized == 'completed';
 }
 
-String _formatDate(dynamic value) {
-  if (value == null) return '';
+String _filterLabel(_RecentOrderDateFilter filter, DateTimeRange? customRange) {
+  switch (filter) {
+    case _RecentOrderDateFilter.all:
+      return 'All';
+    case _RecentOrderDateFilter.today:
+      return 'Today';
+    case _RecentOrderDateFilter.threeDays:
+      return '3 days';
+    case _RecentOrderDateFilter.oneWeek:
+      return '1 week';
+    case _RecentOrderDateFilter.custom:
+      if (customRange == null) return 'Custom';
+      return 'Custom ${_formatDateRangeCompact(customRange)}';
+  }
+}
+
+_RecentOrderDateFilter _dateFilterFromStorageValue(String value) {
+  final normalized = value.trim().toLowerCase().replaceAll('-', '_');
+  return switch (normalized) {
+    'today' => _RecentOrderDateFilter.today,
+    'three_days' || '3_days' => _RecentOrderDateFilter.threeDays,
+    'one_week' || '1_week' || 'week' => _RecentOrderDateFilter.oneWeek,
+    'custom' => _RecentOrderDateFilter.custom,
+    _ => _RecentOrderDateFilter.all,
+  };
+}
+
+String _dateFilterStorageValue(_RecentOrderDateFilter filter) {
+  switch (filter) {
+    case _RecentOrderDateFilter.all:
+      return 'all';
+    case _RecentOrderDateFilter.today:
+      return 'today';
+    case _RecentOrderDateFilter.threeDays:
+      return 'three_days';
+    case _RecentOrderDateFilter.oneWeek:
+      return 'one_week';
+    case _RecentOrderDateFilter.custom:
+      return 'custom';
+  }
+}
+
+String _formatDateRangeCompact(DateTimeRange range) {
+  final start = _formatMonthDay(range.start);
+  final end = _formatMonthDay(range.end);
+  return '$start-$end';
+}
+
+String _formatMonthDay(DateTime value) {
+  return '${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')}';
+}
+
+DateTime _startOfDay(DateTime value) {
+  return DateTime(value.year, value.month, value.day);
+}
+
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
   if (value is num) {
     final milliseconds = value > 100000000000
         ? value.toInt()
         : value.toInt() * 1000;
-    return _formatDateTime(DateTime.fromMillisecondsSinceEpoch(milliseconds));
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds);
   }
 
   final raw = value.toString().trim();
-  if (raw.isEmpty) return '';
+  if (raw.isEmpty) return null;
 
   final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  return _formatDateTime(parsed.toLocal());
+  if (parsed == null) return null;
+  return parsed.toLocal();
+}
+
+String _formatDate(dynamic value) {
+  final parsed = _parseDateTime(value);
+  if (parsed != null) return _formatDateTime(parsed);
+  return value?.toString().trim() ?? '';
 }
 
 String _formatDateTime(DateTime value) {
