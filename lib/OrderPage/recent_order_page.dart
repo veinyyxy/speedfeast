@@ -722,7 +722,22 @@ class _OrderDetailsSheet extends StatelessWidget {
                 ),
               _DetailRow(label: 'Date', value: order.dateLabel),
               _DetailRow(label: 'Fulfillment', value: order.fulfillmentLabel),
-              _DetailRow(label: 'Payment Method', value: order.paymentMethod),
+              if (order.isInStorePayment) ...[
+                _DetailRow(
+                  label: 'Payment Route',
+                  value: order.inStorePaymentLabel,
+                ),
+                if (order.collectionTimingLabel.isNotEmpty)
+                  _DetailRow(
+                    label: 'Collection',
+                    value: order.collectionTimingLabel,
+                  ),
+              ],
+              if (order.paymentMethodLabel.isNotEmpty)
+                _DetailRow(
+                  label: 'Payment Method',
+                  value: order.paymentMethodLabel,
+                ),
               if (order.rewardDiscount > 0)
                 _DetailRow(
                   label: 'Reward Discount',
@@ -1341,6 +1356,8 @@ class RecentOrder {
     required this.hasPaymentRecord,
     required this.paymentMethod,
     required this.paymentStatus,
+    required this.paymentChannel,
+    required this.collectionTiming,
     required this.rewardDiscount,
     required this.rewardTitle,
     required this.estimatedDelivery,
@@ -1374,6 +1391,8 @@ class RecentOrder {
   final bool hasPaymentRecord;
   final String paymentMethod;
   final String paymentStatus;
+  final String paymentChannel;
+  final String collectionTiming;
   final double rewardDiscount;
   final String rewardTitle;
   final String estimatedDelivery;
@@ -1393,8 +1412,37 @@ class RecentOrder {
 
   String get fulfillmentLabel => _humanize(fulfillmentType);
 
+  bool get isInStorePayment => paymentChannel.toLowerCase() == 'in_store';
+  bool get isAwaitingInStoreCollection =>
+      isInStorePayment && paymentStatus.toLowerCase() == 'awaiting_collection';
+  String get inStorePaymentLabel =>
+      fulfillmentType.toLowerCase().contains('dine')
+      ? 'Pay at counter'
+      : 'Pay at store';
+  String get paymentMethodLabel => switch (paymentMethod.toLowerCase()) {
+    'cash' => 'Cash',
+    'pos_card' => 'POS card',
+    _ => _humanize(paymentMethod),
+  };
+  String get collectionTimingLabel => switch (collectionTiming.toLowerCase()) {
+    'before_fulfillment' => 'Before fulfillment',
+    'at_pickup' => 'At pickup',
+    'after_service' => 'After service',
+    _ => '',
+  };
+
   String get paymentStatusLabel {
     if (!hasPaymentRecord) return 'Not started (no payment record)';
+    if (isInStorePayment) {
+      if (isAwaitingInStoreCollection) {
+        return '$inStorePaymentLabel · Awaiting collection';
+      }
+      if (paymentStatus.toLowerCase() == 'paid') {
+        return paymentMethodLabel.isEmpty
+            ? 'In-store payment received'
+            : '$paymentMethodLabel paid';
+      }
+    }
     final label = _humanize(paymentStatus);
     return label.isEmpty ? 'Status unavailable' : label;
   }
@@ -1410,6 +1458,9 @@ class RecentOrder {
 
   bool get canCancel {
     if (id.trim().isEmpty) return false;
+    if (isInStorePayment && paymentStatus.toLowerCase() == 'paid') {
+      return false;
+    }
     final normalized = status.toLowerCase();
     return normalized == 'created' || normalized == 'paid';
   }
@@ -1594,10 +1645,11 @@ class RecentOrder {
       hasPaymentRecord: paymentValue is Map && paymentMap.isNotEmpty,
       paymentMethod: _formatPayment(
         _firstValue(json, const [
-          'payment_method',
-          'paymentMethod',
-          'payment_method_name',
-        ]),
+              'payment_method',
+              'paymentMethod',
+              'payment_method_name',
+            ]) ??
+            _firstValue(paymentMap, const ['payment_method', 'paymentMethod']),
       ),
       paymentStatus: _firstString(
         json,
@@ -1606,6 +1658,22 @@ class RecentOrder {
           'payment_status',
           'paymentStatus',
           'status',
+        ]),
+      ),
+      paymentChannel: _firstString(
+        json,
+        const ['payment_channel', 'paymentChannel'],
+        fallback: _firstString(paymentMap, const [
+          'payment_channel',
+          'paymentChannel',
+        ], fallback: 'online'),
+      ),
+      collectionTiming: _firstString(
+        json,
+        const ['collection_timing', 'collectionTiming'],
+        fallback: _firstString(paymentMap, const [
+          'collection_timing',
+          'collectionTiming',
         ]),
       ),
       rewardDiscount: rewardDiscount,

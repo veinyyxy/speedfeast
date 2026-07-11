@@ -107,6 +107,112 @@ class PickupEtaConfig {
   }
 }
 
+class InStorePaymentOption {
+  const InStorePaymentOption({
+    required this.enabled,
+    required this.collectionTiming,
+    required this.cashEnabled,
+    required this.posCardEnabled,
+  });
+
+  final bool enabled;
+  final String collectionTiming;
+  final bool cashEnabled;
+  final bool posCardEnabled;
+
+  bool get hasAvailableMethod => cashEnabled || posCardEnabled;
+
+  factory InStorePaymentOption.fromConfig(
+    dynamic value, {
+    required InStorePaymentOption fallback,
+  }) {
+    final map = value is Map
+        ? Map<String, dynamic>.from(value)
+        : const <String, dynamic>{};
+    final methods = map['methods'] is Map
+        ? Map<String, dynamic>.from(map['methods'] as Map)
+        : const <String, dynamic>{};
+    final timing = _readMapText(
+      map,
+      'collection_timing',
+      _readMapText(map, 'collectionTiming', fallback.collectionTiming),
+    );
+
+    return InStorePaymentOption(
+      enabled: map.containsKey('enabled')
+          ? _asConfigBool(map['enabled'])
+          : fallback.enabled,
+      collectionTiming:
+          const {
+            'before_fulfillment',
+            'at_pickup',
+            'after_service',
+          }.contains(timing)
+          ? timing
+          : fallback.collectionTiming,
+      cashEnabled: methods.containsKey('cash')
+          ? _asConfigBool(methods['cash'])
+          : fallback.cashEnabled,
+      posCardEnabled: methods.containsKey('pos_card')
+          ? _asConfigBool(methods['pos_card'])
+          : methods.containsKey('posCard')
+          ? _asConfigBool(methods['posCard'])
+          : fallback.posCardEnabled,
+    );
+  }
+}
+
+class InStorePaymentConfig {
+  const InStorePaymentConfig({required this.dineIn, required this.takeout});
+
+  final InStorePaymentOption dineIn;
+  final InStorePaymentOption takeout;
+
+  static const fallback = InStorePaymentConfig(
+    dineIn: InStorePaymentOption(
+      enabled: false,
+      collectionTiming: 'after_service',
+      cashEnabled: true,
+      posCardEnabled: true,
+    ),
+    takeout: InStorePaymentOption(
+      enabled: false,
+      collectionTiming: 'at_pickup',
+      cashEnabled: true,
+      posCardEnabled: true,
+    ),
+  );
+
+  factory InStorePaymentConfig.fromSystemConfigs(Map<String, dynamic> configs) {
+    final value = _configValue(configs['payment.in_store']);
+    final map = value is Map
+        ? Map<String, dynamic>.from(value)
+        : const <String, dynamic>{};
+    return InStorePaymentConfig(
+      dineIn: InStorePaymentOption.fromConfig(
+        map['dine_in'] ?? map['dineIn'],
+        fallback: fallback.dineIn,
+      ),
+      takeout: InStorePaymentOption.fromConfig(
+        map['takeout'],
+        fallback: fallback.takeout,
+      ),
+    );
+  }
+
+  InStorePaymentOption? optionForFulfillmentType(String fulfillmentType) {
+    final normalized = fulfillmentType.trim().toLowerCase().replaceAll(
+      '-',
+      '_',
+    );
+    return switch (normalized) {
+      'dine_in' => dineIn,
+      'takeout' || 'take_out' => takeout,
+      _ => null,
+    };
+  }
+}
+
 class StoreProfileConfig {
   final String name;
   final String addressLine1;
@@ -618,6 +724,7 @@ class ServiceProvider with ChangeNotifier {
   Map<String, dynamic>? _dineInTableContext;
   OrderPricingConfig _orderPricingConfig = OrderPricingConfig.fallback;
   PickupEtaConfig _pickupEtaConfig = PickupEtaConfig.fallback;
+  InStorePaymentConfig _inStorePaymentConfig = InStorePaymentConfig.fallback;
   BusinessHoursConfig _businessHoursConfig = BusinessHoursConfig.fallback;
   StoreProfileConfig _storeProfileConfig = StoreProfileConfig.fallback;
   UserPreferences _userPreferences = UserPreferences.empty();
@@ -640,6 +747,7 @@ class ServiceProvider with ChangeNotifier {
       _userPreferences.recentOrders;
   OrderPricingConfig get orderPricingConfig => _orderPricingConfig;
   PickupEtaConfig get pickupEtaConfig => _pickupEtaConfig;
+  InStorePaymentConfig get inStorePaymentConfig => _inStorePaymentConfig;
   BusinessHoursConfig get businessHoursConfig => _businessHoursConfig;
   StoreProfileConfig get storeProfileConfig => _storeProfileConfig;
   String get storeLogoUrl =>
@@ -1327,6 +1435,7 @@ class ServiceProvider with ChangeNotifier {
     Map<String, dynamic>? shippingAddress,
     String? shippingAddressId,
     String? paymentMethodId,
+    String paymentMode = 'online',
     String? rewardRedemptionId,
     double tipAmount = 0,
   }) async {
@@ -1362,6 +1471,11 @@ class ServiceProvider with ChangeNotifier {
     final normalizedFulfillmentType = fulfillmentType == 'dine-in'
         ? 'dine_in'
         : fulfillmentType;
+    final normalizedPaymentMode = paymentMode.trim().toLowerCase();
+    if (!const {'online', 'in_store'}.contains(normalizedPaymentMode)) {
+      _lastOrderError = 'Unsupported payment mode.';
+      return null;
+    }
     OrderItem? invalidItem;
     for (final item in _cartItems) {
       final productId = item.productId.trim();
@@ -1382,6 +1496,7 @@ class ServiceProvider with ChangeNotifier {
     final requestBody = <String, dynamic>{
       'currency': _orderPricingConfig.currency,
       'fulfillment_type': normalizedFulfillmentType,
+      'payment_mode': normalizedPaymentMode,
       'tip_amount': tipAmount,
       'items': _cartItems.map((item) {
         final selectedOptions = _selectedOptionsForRequest(
@@ -2299,6 +2414,7 @@ class ServiceProvider with ChangeNotifier {
         final configs = Map<String, dynamic>.from(rawConfigs);
         _orderPricingConfig = OrderPricingConfig.fromSystemConfigs(configs);
         _pickupEtaConfig = PickupEtaConfig.fromSystemConfigs(configs);
+        _inStorePaymentConfig = InStorePaymentConfig.fromSystemConfigs(configs);
         _businessHoursConfig = BusinessHoursConfig.fromSystemConfigs(configs);
         _storeProfileConfig = StoreProfileConfig.fromSystemConfigs(configs);
         notifyListeners();
@@ -2309,6 +2425,7 @@ class ServiceProvider with ChangeNotifier {
           'service=${_orderPricingConfig.deliveryServiceFee}, '
           'tax=${_orderPricingConfig.taxRate}, '
           'pickup=${_pickupEtaConfig.display}, '
+          'inStore=dineIn:${_inStorePaymentConfig.dineIn.enabled}, '
           'business=${_businessHoursConfig.statusLabel()}, '
           'store=${_storeProfileConfig.name}',
         );

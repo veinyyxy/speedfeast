@@ -233,6 +233,8 @@ enum DeliveryMode { delivery, dineIn, takeout }
 
 enum DeliveryTimeMode { merchantDecides, scheduled }
 
+enum CheckoutPaymentMode { online, inStore }
+
 class OrderPage extends StatefulWidget {
   const OrderPage({super.key});
 
@@ -249,6 +251,7 @@ class _OrderPageState extends State<OrderPage> {
   bool _isAddItemButtonPressed = false;
   bool _showCustomTipInput = false;
   DeliveryMode _deliveryMode = DeliveryMode.delivery;
+  CheckoutPaymentMode _paymentMode = CheckoutPaymentMode.online;
   DeliveryTimeMode _deliveryTimeMode = DeliveryTimeMode.merchantDecides;
   DateTime? _scheduledDeliveryTime;
   bool _isSubmittingOrder = false;
@@ -322,8 +325,15 @@ class _OrderPageState extends State<OrderPage> {
   }
 
   void _setDeliveryMode(DeliveryMode mode) {
-    if (_deliveryMode != mode) {
-      setState(() => _deliveryMode = mode);
+    if (_deliveryMode != mode ||
+        (mode == DeliveryMode.delivery &&
+            _paymentMode != CheckoutPaymentMode.online)) {
+      setState(() {
+        _deliveryMode = mode;
+        if (mode == DeliveryMode.delivery) {
+          _paymentMode = CheckoutPaymentMode.online;
+        }
+      });
     }
     context.read<ServiceProvider>().setSelectedFulfillmentType(
       _fulfillmentTypeForDeliveryMode(mode),
@@ -1242,8 +1252,35 @@ class _OrderPageState extends State<OrderPage> {
         normalized.contains('log in');
   }
 
+  InStorePaymentOption? _inStorePaymentOption(ServiceProvider serviceProvider) {
+    return serviceProvider.inStorePaymentConfig.optionForFulfillmentType(
+      _fulfillmentTypeForRequest,
+    );
+  }
+
+  CheckoutPaymentMode _effectivePaymentMode(ServiceProvider serviceProvider) {
+    if (_deliveryMode == DeliveryMode.delivery) {
+      return CheckoutPaymentMode.online;
+    }
+    final option = _inStorePaymentOption(serviceProvider);
+    if (_paymentMode == CheckoutPaymentMode.inStore &&
+        option != null &&
+        option.enabled &&
+        option.hasAvailableMethod) {
+      return CheckoutPaymentMode.inStore;
+    }
+    return CheckoutPaymentMode.online;
+  }
+
+  String _inStorePaymentLabel() {
+    return _deliveryMode == DeliveryMode.dineIn
+        ? 'Pay at counter'
+        : 'Pay at store';
+  }
+
   Future<void> _submitOrder(List<OrderItem> orderItems) async {
     final serviceProvider = context.read<ServiceProvider>();
+    final paymentMode = _effectivePaymentMode(serviceProvider);
     if (!serviceProvider.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please log in before making an order.')),
@@ -1289,6 +1326,9 @@ class _OrderPageState extends State<OrderPage> {
         shippingAddress: _shippingAddressForRequest,
         rewardRedemptionId: _selectedRewardRedemption?.id,
         tipAmount: tipAmount,
+        paymentMode: paymentMode == CheckoutPaymentMode.inStore
+            ? 'in_store'
+            : 'online',
       );
 
       if (!mounted) return;
@@ -1301,6 +1341,16 @@ class _OrderPageState extends State<OrderPage> {
         if (orderId.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Order created successfully.')),
+          );
+          return;
+        }
+
+        if (paymentMode == CheckoutPaymentMode.inStore) {
+          final collectionMessage = _deliveryMode == DeliveryMode.dineIn
+              ? 'Please pay at the counter.'
+              : 'Please pay at the store.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Order placed. $collectionMessage')),
           );
           return;
         }
@@ -1808,6 +1858,8 @@ class _OrderPageState extends State<OrderPage> {
                 _buildDeliveryModeSelector(),
                 const SizedBox(height: 16),
                 _buildConditionalModeContent(),
+                const SizedBox(height: 16),
+                _buildPaymentModeSection(),
               ],
             ),
           ),
@@ -1871,6 +1923,122 @@ class _OrderPageState extends State<OrderPage> {
       case DeliveryMode.takeout:
         return _buildTakeoutDetails();
     }
+  }
+
+  Widget _buildPaymentModeSection() {
+    final serviceProvider = context.watch<ServiceProvider>();
+    final option = _inStorePaymentOption(serviceProvider);
+    final canUseInStore =
+        _deliveryMode != DeliveryMode.delivery &&
+        option != null &&
+        option.enabled &&
+        option.hasAvailableMethod;
+    final selectedMode = _effectivePaymentMode(serviceProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Icon(
+              Icons.payments_outlined,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Payment',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildPaymentModeOption(
+          selected: selectedMode == CheckoutPaymentMode.online,
+          icon: Icons.credit_card_outlined,
+          title: 'Pay online',
+          subtitle: 'Pay securely before the order is sent to the restaurant.',
+          onTap: () =>
+              setState(() => _paymentMode = CheckoutPaymentMode.online),
+        ),
+        if (canUseInStore) ...[
+          const Divider(height: 16),
+          _buildPaymentModeOption(
+            selected: selectedMode == CheckoutPaymentMode.inStore,
+            icon: Icons.storefront_outlined,
+            title: _inStorePaymentLabel(),
+            subtitle: _inStorePaymentSubtitle(option),
+            onTap: () =>
+                setState(() => _paymentMode = CheckoutPaymentMode.inStore),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _inStorePaymentSubtitle(InStorePaymentOption option) {
+    final paymentMethods = switch ((
+      option.cashEnabled,
+      option.posCardEnabled,
+    )) {
+      (true, true) => 'Cash or POS card.',
+      (true, false) => 'Cash.',
+      (false, true) => 'POS card.',
+      _ => 'Payment at the restaurant.',
+    };
+    final timing = switch (option.collectionTiming) {
+      'before_fulfillment' => 'Payment is collected before fulfillment.',
+      'at_pickup' => 'Payment is collected when you pick up the order.',
+      _ => 'Payment is collected after service.',
+    };
+    return '$paymentMethods $timing';
+  }
+
+  Widget _buildPaymentModeOption({
+    required bool selected,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? primaryColor : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 10),
+            Icon(icon, size: 22, color: Colors.grey.shade700),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDeliveryDetails() {
