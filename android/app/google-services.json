@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:46671696841:android:b2ebd116accaa43bba0e18",
+        "android_client_info": {
+          "package_name": "com.techlong.speedfeast.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-PsYoo1EJqLybmUqlVJWIrz37USIvWxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:46671696841:android:150529ac181b91baba0e18",
         "android_client_info": {
           "package_name": "com.techlong.speedfestmerchant.speedfest_merchant"

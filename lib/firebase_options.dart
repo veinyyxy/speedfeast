@@ -61,7 +61,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyD-PsYoo1EJqLybmUqlVJWIrz37USIvWxk',
-    appId: '1:46671696841:android:18f5daf663d867f1ba0e18',
+    appId: '1:46671696841:android:b2ebd116accaa43bba0e18',
     messagingSenderId: '46671696841',
     projectId: 'speedfeast-marchent',
     storageBucket: 'speedfeast-marchent.firebasestorage.app',

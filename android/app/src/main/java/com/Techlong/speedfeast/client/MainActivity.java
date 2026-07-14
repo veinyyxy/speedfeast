@@ -1,4 +1,4 @@
-package com.techlong.speedfeast;
+package com.techlong.speedfeast.client;
 
 import io.flutter.embedding.android.FlutterFragmentActivity;
 
