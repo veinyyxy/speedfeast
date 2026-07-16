@@ -47,6 +47,7 @@ class ProductDetailOptionGroup {
   final bool isRequired;
   final int minSelect;
   final int maxSelect;
+  final bool optionsAffectPrice;
   final ProductOptionSelectionType selectionType;
   final List<ProductDetailOption> options;
 
@@ -57,6 +58,7 @@ class ProductDetailOptionGroup {
     this.isRequired = false,
     this.minSelect = 0,
     this.maxSelect = 1,
+    this.optionsAffectPrice = true,
     this.selectionType = ProductOptionSelectionType.single,
   });
 
@@ -76,6 +78,10 @@ class ProductDetailOptionGroup {
           _readBool(json, const ['is_required', 'isRequired']) || minSelect > 0,
       minSelect: minSelect,
       maxSelect: maxSelect < 1 ? 1 : maxSelect,
+      optionsAffectPrice: _readBool(json, const [
+        'options_affect_price',
+        'optionsAffectPrice',
+      ], fallback: true),
       selectionType: isMultiple
           ? ProductOptionSelectionType.multiple
           : ProductOptionSelectionType.single,
@@ -155,7 +161,11 @@ double _readDouble(Map<String, dynamic> json, List<String> keys) {
   return 0;
 }
 
-bool _readBool(Map<String, dynamic> json, List<String> keys) {
+bool _readBool(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  bool fallback = false,
+}) {
   for (final key in keys) {
     final value = json[key];
     if (value == null) continue;
@@ -164,7 +174,7 @@ bool _readBool(Map<String, dynamic> json, List<String> keys) {
     if (text == 'true' || text == '1' || text == 'yes') return true;
     if (text == 'false' || text == '0' || text == 'no') return false;
   }
-  return false;
+  return fallback;
 }
 
 class ProductRecommendation {
@@ -582,9 +592,11 @@ class _ProductDetailState extends State<ProductDetail> {
       final selected = _selectedByGroup[group.id] ?? <String>{};
       for (final option in group.options) {
         if (selected.contains(option.id)) {
-          total += option.extraPrice;
+          if (group.optionsAffectPrice) {
+            total += option.extraPrice;
+          }
+          total += _calculateExtras(option.childGroups);
         }
-        total += _calculateExtras(option.childGroups);
       }
     }
     return total;
@@ -1085,7 +1097,19 @@ class _ProductDetailState extends State<ProductDetail> {
                 ],
               ),
             ),
-            if (option.extraPrice > 0)
+            if (!group.optionsAffectPrice)
+              Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Text(
+                  'Included',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              )
+            else if (option.extraPrice > 0)
               Padding(
                 padding: const EdgeInsets.only(left: 10),
                 child: Text(

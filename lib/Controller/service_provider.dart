@@ -1107,6 +1107,22 @@ class ServiceProvider with ChangeNotifier {
     return null;
   }
 
+  bool _readProductBool(
+    Map<String, dynamic> product,
+    List<String> keys, {
+    required bool fallback,
+  }) {
+    for (final key in keys) {
+      final value = product[key];
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      final text = value?.toString().trim().toLowerCase();
+      if (text == 'true' || text == '1' || text == 'yes') return true;
+      if (text == 'false' || text == '0' || text == 'no') return false;
+    }
+    return fallback;
+  }
+
   _SelectedOptionPriceResult _readSelectedOptionPriceDelta(
     Map<String, dynamic> product,
     Map<String, List<String>> selectedOptions,
@@ -1153,6 +1169,10 @@ class ServiceProvider with ChangeNotifier {
         'group_id',
       ]);
       final selectedIds = selectedOptions[groupId] ?? const <String>[];
+      final optionsAffectPrice = _readProductBool(group, const [
+        'options_affect_price',
+        'optionsAffectPrice',
+      ], fallback: true);
 
       if (groupId.isNotEmpty && selectedOptions.containsKey(groupId)) {
         seenGroupIds.add(groupId);
@@ -1186,7 +1206,9 @@ class ServiceProvider with ChangeNotifier {
           continue;
         }
 
-        total += _readProductPrice(option) ?? 0;
+        if (optionsAffectPrice) {
+          total += _readProductPrice(option) ?? 0;
+        }
         final childResult = _readOptionGroupsPrice(
           option['child_groups'] ?? option['childGroups'],
           selectedOptions,

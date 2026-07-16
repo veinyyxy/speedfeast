@@ -1097,7 +1097,9 @@ class _OrderOptionGroupLines extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _formatMoney(currency, option.totalPrice),
+                    option.totalPrice == 0
+                        ? 'Included'
+                        : _formatMoney(currency, option.totalPrice),
                     style: TextStyle(color: color, fontSize: 12),
                   ),
                 ],
