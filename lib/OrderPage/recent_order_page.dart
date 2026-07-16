@@ -976,6 +976,7 @@ class _OrderItemLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final price = item.price > 0 ? _formatMoney(currency, item.price) : '';
+    final optionGroups = item.optionGroups;
     final primary = Theme.of(context).colorScheme.primary;
 
     return Padding(
@@ -1027,13 +1028,13 @@ class _OrderItemLine extends StatelessWidget {
               ],
             ],
           ),
-          if (item.optionsLabel.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              item.optionsLabel,
-              style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.62),
-                fontSize: 12,
+          if (optionGroups.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            ...optionGroups.entries.map(
+              (entry) => _OrderOptionGroupLines(
+                groupName: entry.key,
+                options: entry.value,
+                currency: currency,
               ),
             ),
           ],
@@ -1047,6 +1048,62 @@ class _OrderItemLine extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderOptionGroupLines extends StatelessWidget {
+  const _OrderOptionGroupLines({
+    required this.groupName,
+    required this.options,
+    required this.currency,
+  });
+
+  final String groupName;
+  final List<RecentOrderItemOption> options;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Colors.black.withValues(alpha: 0.62);
+    final displayGroupName = groupName.trim().isEmpty ? 'Options' : groupName;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '-$displayGroupName:',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          ...options.map(
+            (option) => Padding(
+              padding: const EdgeInsets.only(left: 14, top: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${option.quantity}x ${option.name}',
+                      style: TextStyle(color: color, fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatMoney(currency, option.totalPrice),
+                    style: TextStyle(color: color, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1746,24 +1803,29 @@ class RecentOrderItem {
 
   bool get isRewardItem => itemSource.toLowerCase() == 'reward';
 
-  String get optionsLabel {
-    if (options.isEmpty) return '';
-
-    final grouped = <String, List<String>>{};
+  Map<String, List<RecentOrderItemOption>> get optionGroups {
+    final grouped = <String, List<RecentOrderItemOption>>{};
     for (final option in options) {
       final optionName = option.name.trim();
       if (optionName.isEmpty) continue;
 
       final groupName = option.groupName.trim();
-      grouped.putIfAbsent(groupName, () => <String>[]).add(optionName);
+      grouped
+          .putIfAbsent(groupName, () => <RecentOrderItemOption>[])
+          .add(option);
     }
+    return Map<String, List<RecentOrderItemOption>>.unmodifiable({
+      for (final entry in grouped.entries)
+        entry.key: List<RecentOrderItemOption>.unmodifiable(entry.value),
+    });
+  }
 
-    return grouped.entries
+  String get optionsLabel {
+    return optionGroups.entries
         .map((entry) {
-          final names = entry.value.join(', ');
+          final names = entry.value.map((option) => option.name).join(', ');
           return entry.key.isEmpty ? names : '${entry.key}: $names';
         })
-        .where((text) => text.trim().isNotEmpty)
         .join(' · ');
   }
 
@@ -1818,12 +1880,58 @@ class RecentOrderItem {
 }
 
 class RecentOrderItemOption {
-  const RecentOrderItemOption({required this.name, this.groupName = ''});
+  const RecentOrderItemOption({
+    required this.name,
+    this.groupName = '',
+    this.quantity = 1,
+    this.totalPrice = 0,
+  });
 
   final String name;
   final String groupName;
+  final int quantity;
+  final double totalPrice;
 
   factory RecentOrderItemOption.fromJson(Map<String, dynamic> json) {
+    final parsedQuantity = _firstInt(json, const [
+      'quantity',
+      'qty',
+      'option_quantity',
+      'optionQuantity',
+      'selected_quantity',
+      'selectedQuantity',
+    ], fallback: 1);
+    final quantity = parsedQuantity > 0 ? parsedQuantity : 1;
+    final lineTotalValue = _firstValue(json, const [
+      'subtotal',
+      'line_total',
+      'lineTotal',
+      'total_price',
+      'totalPrice',
+      'total_amount',
+      'totalAmount',
+      'option_total',
+      'optionTotal',
+    ]);
+    final unitPriceValue = _firstValue(json, const [
+      'unit_price',
+      'unitPrice',
+      'base_price',
+      'basePrice',
+      'price_adjustment',
+      'priceAdjustment',
+      'option_price',
+      'optionPrice',
+      'additional_price',
+      'additionalPrice',
+    ]);
+    final fallbackPrice = _firstDouble(json, const ['price']);
+    final totalPrice = lineTotalValue != null
+        ? _doubleValue(lineTotalValue)
+        : unitPriceValue != null
+        ? _doubleValue(unitPriceValue) * quantity
+        : fallbackPrice;
+
     return RecentOrderItemOption(
       name: _firstString(json, const [
         'option_name',
@@ -1839,6 +1947,8 @@ class RecentOrderItemOption {
         'option_group_name',
         'optionGroupName',
       ]),
+      quantity: quantity,
+      totalPrice: totalPrice,
     );
   }
 }
@@ -1865,6 +1975,10 @@ String _firstString(
 
 double _firstDouble(Map<String, dynamic> json, List<String> keys) {
   final value = _firstValue(json, keys);
+  return _doubleValue(value);
+}
+
+double _doubleValue(dynamic value) {
   if (value is num) return value.toDouble();
   final text = value?.toString() ?? '';
   final normalized = text.replaceAll(RegExp(r'[^0-9.\-]'), '');
