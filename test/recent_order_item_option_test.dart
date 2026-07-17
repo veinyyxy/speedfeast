@@ -66,4 +66,43 @@ void main() {
       expect(option.totalPrice, 2);
     });
   });
+
+  group('RecentOrder fulfillment due time', () {
+    test('uses due_at as the estimated delivery time for delivery', () {
+      final order = RecentOrder.fromJson({
+        'order_id': 'delivery-order',
+        'fulfillment_type': 'delivery',
+        'due_at': '2026-07-17T18:30:00Z',
+        'estimated_delivery': '2026-07-17T19:30:00Z',
+      });
+
+      expect(order.dueAt, isNotNull);
+      expect(order.dueAt!.toUtc(), DateTime.utc(2026, 7, 17, 18, 30));
+      expect(order.fulfillmentDueLabel, 'Estimated delivery');
+      expect(order.fulfillmentDueTime, isNot(order.estimatedDelivery));
+    });
+
+    test('labels takeout due_at as estimated completion', () {
+      final order = RecentOrder.fromJson({
+        'order_id': 'takeout-order',
+        'fulfillment_type': 'takeout',
+        'fulfillment_detail': {'due_at': '2026-07-17T18:45:00Z'},
+      });
+
+      expect(order.fulfillmentDueLabel, 'Estimated completion');
+      expect(order.fulfillmentDueTime, isNotEmpty);
+      expect(order.actualFulfillmentLabel, 'Completed');
+    });
+
+    test('keeps legacy estimated_delivery as a fallback', () {
+      final order = RecentOrder.fromJson({
+        'order_id': 'legacy-order',
+        'fulfillment_type': 'delivery',
+        'estimated_delivery': '2026-07-17T19:30:00Z',
+      });
+
+      expect(order.dueAt, isNull);
+      expect(order.fulfillmentDueTime, order.estimatedDelivery);
+    });
+  });
 }

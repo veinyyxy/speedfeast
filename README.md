@@ -1,6 +1,9 @@
 # speedfeast
 
-A new Flutter project.
+SpeedFeast for Client
+
+## Credits
+- ChatGPT (AI assistant, OpenAI)
 
 ## Getting Started
 

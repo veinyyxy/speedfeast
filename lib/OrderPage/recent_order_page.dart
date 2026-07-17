@@ -554,6 +554,16 @@ class _OrderCard extends StatelessWidget {
                     label: order.fulfillmentLabel,
                   ),
                 ],
+                if (order.fulfillmentDueTime.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _InfoLine(
+                    icon: order.isDelivery
+                        ? Icons.local_shipping_outlined
+                        : Icons.schedule_outlined,
+                    label:
+                        '${order.fulfillmentDueLabel}: ${order.fulfillmentDueTime}',
+                  ),
+                ],
                 if (order.rewardDiscount > 0) ...[
                   const SizedBox(height: 8),
                   _InfoLine(
@@ -745,10 +755,13 @@ class _OrderDetailsSheet extends StatelessWidget {
                       '${_formatMoney(order.currency, -order.rewardDiscount)}${order.rewardTitle.isEmpty ? '' : ' (${order.rewardTitle})'}',
                 ),
               _DetailRow(
-                label: 'Estimated Delivery',
-                value: order.estimatedDelivery,
+                label: order.fulfillmentDueLabel,
+                value: order.fulfillmentDueTime,
               ),
-              _DetailRow(label: 'Delivered', value: order.actualDelivery),
+              _DetailRow(
+                label: order.actualFulfillmentLabel,
+                value: order.actualDelivery,
+              ),
               _DetailRow(label: 'Address', value: order.shippingAddress),
               _DetailRow(label: 'Order Note', value: order.orderNote),
               if (order.isReviewed)
@@ -1419,6 +1432,7 @@ class RecentOrder {
     required this.collectionTiming,
     required this.rewardDiscount,
     required this.rewardTitle,
+    required this.dueAt,
     required this.estimatedDelivery,
     required this.actualDelivery,
     required this.orderNote,
@@ -1454,6 +1468,7 @@ class RecentOrder {
   final String collectionTiming;
   final double rewardDiscount;
   final String rewardTitle;
+  final DateTime? dueAt;
   final String estimatedDelivery;
   final String actualDelivery;
   final String orderNote;
@@ -1465,6 +1480,17 @@ class RecentOrder {
   String get displayId => id.isEmpty ? 'Order' : 'Order #$id';
 
   bool get isDelivery => fulfillmentType.toLowerCase().contains('delivery');
+
+  String get fulfillmentDueLabel =>
+      isDelivery ? 'Estimated delivery' : 'Estimated completion';
+
+  String get fulfillmentDueTime {
+    final dueTime = dueAt;
+    if (dueTime != null) return _formatDateTime(dueTime);
+    return estimatedDelivery;
+  }
+
+  String get actualFulfillmentLabel => isDelivery ? 'Delivered' : 'Completed';
 
   bool get shouldShowDeliveryFees =>
       isDelivery || deliveryFee > 0 || deliveryServiceFee > 0;
@@ -1737,6 +1763,10 @@ class RecentOrder {
       ),
       rewardDiscount: rewardDiscount,
       rewardTitle: _firstString(rewardMap, const ['title', 'name']),
+      dueAt: _parseDateTime(
+        _firstValue(json, const ['due_at', 'dueAt']) ??
+            _firstValue(fulfillmentMap, const ['due_at', 'dueAt']),
+      ),
       estimatedDelivery: _formatDate(
         _firstValue(json, const [
           'estimated_delivery',
