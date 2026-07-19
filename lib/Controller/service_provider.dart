@@ -1453,6 +1453,7 @@ class ServiceProvider with ChangeNotifier {
     String? tableToken,
     String? pickupLocation,
     String? deliveryNote,
+    DateTime? scheduledFor,
     String? orderNote,
     Map<String, dynamic>? shippingAddress,
     String? shippingAddressId,
@@ -1518,6 +1519,9 @@ class ServiceProvider with ChangeNotifier {
     final requestBody = <String, dynamic>{
       'currency': _orderPricingConfig.currency,
       'fulfillment_type': normalizedFulfillmentType,
+      'fulfillment_timing': scheduledFor == null ? 'asap' : 'scheduled',
+      if (scheduledFor != null)
+        'scheduled_for': scheduledFor.toUtc().toIso8601String(),
       'payment_mode': normalizedPaymentMode,
       'tip_amount': tipAmount,
       'items': _cartItems.map((item) {

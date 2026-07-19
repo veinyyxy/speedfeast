@@ -1177,16 +1177,6 @@ class _OrderPageState extends State<OrderPage> {
     return 'Merchant decides after order, usually within 30 minutes.';
   }
 
-  String? get _deliveryNoteForRequest {
-    if (_deliveryMode != DeliveryMode.delivery) return null;
-    if (_deliveryTimeMode == DeliveryTimeMode.scheduled) {
-      final scheduledTime = _scheduledDeliveryTime;
-      if (scheduledTime == null) return null;
-      return 'Scheduled delivery time: ${_formatDateTime(scheduledTime)}';
-    }
-    return 'Delivery time preference: merchant decides after order, usually within 30 minutes.';
-  }
-
   String _formatDateTime(DateTime value) {
     final year = value.year.toString().padLeft(4, '0');
     final month = value.month.toString().padLeft(2, '0');
@@ -1320,7 +1310,11 @@ class _OrderPageState extends State<OrderPage> {
         pickupLocation: _deliveryMode == DeliveryMode.takeout
             ? '630 Guelph Street, Winnipeg, MB, Canada, R3M 3B2'
             : null,
-        deliveryNote: _deliveryNoteForRequest,
+        scheduledFor:
+            _deliveryMode == DeliveryMode.delivery &&
+                _deliveryTimeMode == DeliveryTimeMode.scheduled
+            ? _scheduledDeliveryTime
+            : null,
         orderNote: _orderNoteForRequest,
         shippingAddressId: _shippingAddressIdForRequest,
         shippingAddress: _shippingAddressForRequest,
