@@ -1,0 +1,118 @@
+name: Deploy Buyer Web
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.5"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Verify web release build
+        run: >-
+          flutter build web --release
+          --dart-define=CLIENT_ID=ci-validation-client
+          --dart-define=HMAC_SECRET_KEY=ci-validation-secret
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: buyer-web-production
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.5"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Validate production configuration
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        shell: bash
+        run: |
+          test -n "$CLIENT_ID"
+          test -n "$HMAC_SECRET_KEY"
+          test -n "$AWS_ROLE_ARN"
+          test -n "$AWS_REGION"
+          test -n "$S3_BUCKET"
+          test -n "$CLOUDFRONT_DISTRIBUTION_ID"
+
+      - name: Build web release
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+        run: >-
+          flutter build web --release
+          --dart-define=CLIENT_ID="$CLIENT_ID"
+          --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: aws s3 sync build/web "s3://${{ vars.S3_BUCKET }}" --delete
+
+      - name: Invalidate CloudFront cache
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
+          --paths "/*"
