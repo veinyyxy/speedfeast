@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../Controller/service_provider.dart';
 
 import 'home_page_exclusive2.dart';
@@ -28,9 +27,6 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(
     buyerFirebaseMessagingBackgroundHandler,
   );
-  // 加载 .env 文件
-  await dotenv.load(fileName: "assets/configs/.env");
-
   final serviceProvider = ServiceProvider();
   await serviceProvider.initialize();
   await BuyerNotificationService.instance.initialize(

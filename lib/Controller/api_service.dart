@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 用于获取 HMAC 密钥等
 import 'package:speedfeast/Security/make_request_header.dart';
 
 // 自定义异常类
@@ -24,8 +23,11 @@ class ApiService {
   final String _clientID;
 
   ApiService(this._baseUrl)
-    : _secretKeyHMAC = dotenv.env['HMAC_SECRET_KEY'] ?? '',
-      _clientID = dotenv.env['CLIENT_ID'] ?? '';
+    : _secretKeyHMAC = const String.fromEnvironment(
+        'HMAC_SECRET_KEY',
+        defaultValue: '',
+      ),
+      _clientID = const String.fromEnvironment('CLIENT_ID', defaultValue: '');
 
   // 内部辅助方法：创建 HMAC 签名头部
   Map<String, String> _createRequestHeaders(
