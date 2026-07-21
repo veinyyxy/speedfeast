@@ -43,6 +43,7 @@ jobs:
           flutter build web --release
           --dart-define=CLIENT_ID=ci-validation-client
           --dart-define=HMAC_SECRET_KEY=ci-validation-secret
+          --dart-define=BUYER_FIREBASE_WEB_VAPID_KEY=ci-validation-vapid-key
 
   deploy:
     if: github.event_name == 'workflow_dispatch'
@@ -80,6 +81,7 @@ jobs:
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
@@ -88,6 +90,7 @@ jobs:
         run: |
           test -n "$CLIENT_ID"
           test -n "$HMAC_SECRET_KEY"
+          test -n "$BUYER_FIREBASE_WEB_VAPID_KEY"
           test -n "$AWS_ROLE_ARN"
           test -n "$AWS_REGION"
           test -n "$S3_BUCKET"
@@ -97,10 +100,12 @@ jobs:
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
         run: >-
           flutter build web --release
           --dart-define=CLIENT_ID="$CLIENT_ID"
           --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+          --dart-define=BUYER_FIREBASE_WEB_VAPID_KEY="$BUYER_FIREBASE_WEB_VAPID_KEY"
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@v4
