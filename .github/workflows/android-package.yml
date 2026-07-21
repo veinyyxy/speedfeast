@@ -1,0 +1,124 @@
+name: Buyer Android Package (No Play Upload)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "buyer-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.5"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Validate application configuration
+        shell: bash
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+        run: |
+          test -n "$CLIENT_ID"
+          test -n "$HMAC_SECRET_KEY"
+
+      - name: Configure Android signing when available
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::warning::No upload keystore is configured; the package will use the debug signing fallback and must not be uploaded to Google Play."
+            exit 0
+          fi
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          test -n "$STORE_PASSWORD"
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          printf 'storeFile=upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > android/key.properties
+
+      - name: Build app bundle
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+        run: >-
+          flutter build appbundle --release
+          --build-number=${{ github.run_number }}
+          --dart-define=CLIENT_ID="$CLIENT_ID"
+          --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+
+      - name: Build APK
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+        run: >-
+          flutter build apk --release
+          --build-number=${{ github.run_number }}
+          --dart-define=CLIENT_ID="$CLIENT_ID"
+          --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+
+      - name: Verify app bundle signature
+        run: jarsigner -verify build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: buyer-android-${{ github.run_number }}
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              build/app/outputs/bundle/release/app-release.aab \
+              build/app/outputs/flutter-apk/app-release.apk \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              build/app/outputs/bundle/release/app-release.aab \
+              build/app/outputs/flutter-apk/app-release.apk \
+              --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi
+
+      # Google Play upload is intentionally disabled until the Play Console
+      # account, application, service account, and production testing are ready.
