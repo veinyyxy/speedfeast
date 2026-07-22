@@ -44,6 +44,7 @@ jobs:
           --dart-define=CLIENT_ID=ci-validation-client
           --dart-define=HMAC_SECRET_KEY=ci-validation-secret
           --dart-define=BUYER_FIREBASE_WEB_VAPID_KEY=ci-validation-vapid-key
+          --dart-define=BUYER_API_BASE_URL=https://api.example.invalid
 
   deploy:
     if: github.event_name == 'workflow_dispatch'
@@ -82,6 +83,7 @@ jobs:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
           BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
@@ -91,6 +93,8 @@ jobs:
           test -n "$CLIENT_ID"
           test -n "$HMAC_SECRET_KEY"
           test -n "$BUYER_FIREBASE_WEB_VAPID_KEY"
+          test -n "$BUYER_API_BASE_URL"
+          node -e "const u=new URL(process.env.BUYER_API_BASE_URL); if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash) process.exit(1)"
           test -n "$AWS_ROLE_ARN"
           test -n "$AWS_REGION"
           test -n "$S3_BUCKET"
@@ -101,11 +105,13 @@ jobs:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
           BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
         run: >-
           flutter build web --release
           --dart-define=CLIENT_ID="$CLIENT_ID"
           --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
           --dart-define=BUYER_FIREBASE_WEB_VAPID_KEY="$BUYER_FIREBASE_WEB_VAPID_KEY"
+          --dart-define=BUYER_API_BASE_URL="$BUYER_API_BASE_URL"
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@v6

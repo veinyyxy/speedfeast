@@ -45,9 +45,12 @@ jobs:
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
         run: |
           test -n "$CLIENT_ID"
           test -n "$HMAC_SECRET_KEY"
+          test -n "$BUYER_API_BASE_URL"
+          node -e "const u=new URL(process.env.BUYER_API_BASE_URL); if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash) process.exit(1)"
 
       - name: Configure Android signing when available
         shell: bash
@@ -73,21 +76,25 @@ jobs:
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
         run: >-
           flutter build appbundle --release
           --build-number=${{ github.run_number }}
           --dart-define=CLIENT_ID="$CLIENT_ID"
           --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+          --dart-define=BUYER_API_BASE_URL="$BUYER_API_BASE_URL"
 
       - name: Build APK
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
         run: >-
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=CLIENT_ID="$CLIENT_ID"
           --dart-define=HMAC_SECRET_KEY="$HMAC_SECRET_KEY"
+          --dart-define=BUYER_API_BASE_URL="$BUYER_API_BASE_URL"
 
       - name: Verify app bundle signature
         run: jarsigner -verify build/app/outputs/bundle/release/app-release.aab

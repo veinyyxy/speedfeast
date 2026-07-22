@@ -1,23 +1,47 @@
 class ServiceConfig {
-  final String name;
-  final int port;
   final Map<String, dynamic> function;
+  final String _apiBaseUrl;
 
   ServiceConfig({
-    required this.name,
-    required this.port,
     required this.function,
-  });
+    String apiBaseUrl = const String.fromEnvironment(
+      'BUYER_API_BASE_URL',
+      defaultValue: '',
+    ),
+  }) : _apiBaseUrl = apiBaseUrl;
 
-  factory ServiceConfig.fromJson(Map<String, dynamic> json) {
+  factory ServiceConfig.fromJson(
+    Map<String, dynamic> json, {
+    String apiBaseUrl = const String.fromEnvironment(
+      'BUYER_API_BASE_URL',
+      defaultValue: '',
+    ),
+  }) {
     return ServiceConfig(
-      name: json['name']?.toString() ?? '',
-      port: json['port'] is int
-          ? json['port'] as int
-          : int.tryParse(json['port']?.toString() ?? '') ?? 0,
       function: Map<String, dynamic>.from(json['function'] as Map? ?? {}),
+      apiBaseUrl: apiBaseUrl,
     );
   }
+
+  String _normalizeBaseUrl(String value, String source) {
+    final normalized = value.trim().replaceFirst(RegExp(r'/+$'), '');
+    final uri = Uri.tryParse(normalized);
+    if (uri == null ||
+        !uri.hasScheme ||
+        uri.host.isEmpty ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.userInfo.isNotEmpty ||
+        uri.path.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw FormatException(
+        '$source must be an HTTP(S) origin without a path, query, or fragment.',
+      );
+    }
+    return normalized;
+  }
+
+  String _url(String path) => '${getBaseUrl()}$path';
 
   String _path(String key, String fallback) {
     final value = function[key];
@@ -28,83 +52,88 @@ class ServiceConfig {
   }
 
   String getProductListUrl() {
-    return '$name:$port${getProductListPath()}';
+    return _url(getProductListPath());
   }
 
   String getVerificationCodeUrl() {
-    return '$name:$port${getVerificationCodePath()}';
+    return _url(getVerificationCodePath());
   }
 
   String verifyVerificationCodeUrl() {
-    return '$name:$port${verifyVerificationCodePath()}';
+    return _url(verifyVerificationCodePath());
   }
 
   String getRegisterUrl() {
-    return '$name:$port${getRegisterPath()}';
+    return _url(getRegisterPath());
   }
 
   String getLoginUrl() {
-    return '$name:$port${getLoginPath()}';
+    return _url(getLoginPath());
   }
 
   String getValidateUrl() {
-    return '$name:$port${getValidatePath()}';
+    return _url(getValidatePath());
   }
 
   String getCreateOrderUrl() {
-    return '$name:$port${getCreateOrderPath()}';
+    return _url(getCreateOrderPath());
   }
 
   String getVerifyDineInTableUrl() {
-    return '$name:$port${getVerifyDineInTablePath()}';
+    return _url(getVerifyDineInTablePath());
   }
 
   String getCreatePaymentUrl() {
-    return '$name:$port${getCreatePaymentPath()}';
+    return _url(getCreatePaymentPath());
   }
 
   String getCancelOrderUrl() {
-    return '$name:$port${getCancelOrderPath()}';
+    return _url(getCancelOrderPath());
   }
 
   String getRecentOrdersUrl() {
-    return '$name:$port${getRecentOrdersPath()}';
+    return _url(getRecentOrdersPath());
   }
 
   String getRewardsSummaryUrl() {
-    return '$name:$port${getRewardsSummaryPath()}';
+    return _url(getRewardsSummaryPath());
   }
 
   String getRewardsTransactionsUrl() {
-    return '$name:$port${getRewardsTransactionsPath()}';
+    return _url(getRewardsTransactionsPath());
   }
 
   String getRewardsRedemptionsUrl() {
-    return '$name:$port${getRewardsRedemptionsPath()}';
+    return _url(getRewardsRedemptionsPath());
   }
 
   String getRewardsRedeemUrl() {
-    return '$name:$port${getRewardsRedeemPath()}';
+    return _url(getRewardsRedeemPath());
   }
 
   String getOrderReviewUrl(String orderId) {
-    return '$name:$port${getOrderReviewPath(orderId)}';
+    return _url(getOrderReviewPath(orderId));
   }
 
   String getPersonalInfoUrl() {
-    return '$name:$port${getPersonalInfoPath()}';
+    return _url(getPersonalInfoPath());
   }
 
   String getSystemConfigUrl() {
-    return '$name:$port${getSystemConfigPath()}';
+    return _url(getSystemConfigPath());
   }
 
   String getImagesRootUrl() {
-    return '$name:$port';
+    return getBaseUrl();
   }
 
   String getBaseUrl() {
-    return '$name:$port';
+    if (_apiBaseUrl.trim().isEmpty) {
+      throw const FormatException(
+        'BUYER_API_BASE_URL is required. Provide it with --dart-define.',
+      );
+    }
+    return _normalizeBaseUrl(_apiBaseUrl, 'BUYER_API_BASE_URL');
   }
 
   String getProductListPath() =>
