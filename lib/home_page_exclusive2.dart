@@ -25,10 +25,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // 购物车按钮位置
   Offset? _fabPosition;
 
-  // 新增：一个用于存储动态生成 widget 列表的状态变量
-  final List<Widget> _dynamicSliverWidgets = [];
-  bool _isInitDataLoaded = false; // 用于确保 didChangeDependencies 中的逻辑只运行一次
-
   static const bool _showSearchButton = false;
   static const double _cartFabWidth = 148;
   static const double _cartFabHeight = 58;
@@ -52,57 +48,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
-    if (!_isInitDataLoaded) {
-      final serviceProvider = context.read<ServiceProvider>();
-      // 假设 initData 是 Map<String, List<Map<String, dynamic>>>
-      final Map<String, dynamic>? initData = serviceProvider.initData;
-
-      _dynamicSliverWidgets.add(RewardWidget());
-
-      if (initData != null) {
-        var hasRenderedCategory = false;
-        // 遍历 initData 的每个键值对，键是分类名，值是产品列表
-        initData.forEach((categoryName, productListDynamic) {
-          if (productListDynamic is List) {
-            List<Product2ItemData> items = [];
-            for (var itemDataDynamic in productListDynamic) {
-              if (itemDataDynamic is Map<String, dynamic>) {
-                final productId =
-                    itemDataDynamic['product_id']?.toString() ?? '';
-                if (productId.isEmpty || productId.toLowerCase() == 'null') {
-                  continue;
-                }
-                items.add(
-                  Product2ItemData.fromJson(
-                    itemDataDynamic,
-                    imageRoot: serviceProvider.fetchImageRoot(),
-                  ),
-                );
-              }
-            }
-            if (hasRenderedCategory) {
-              _dynamicSliverWidgets.add(const _CategorySectionDivider());
-            }
-            // 添加 ProductCategoryList 到动态列表
-            _dynamicSliverWidgets.add(
-              ProductCategoryList(
-                categoryName: categoryName, // 分类名来自Map的键
-                items: items,
-              ),
-            );
-            hasRenderedCategory = true;
-          }
-        });
-        if (hasRenderedCategory) {
-          _dynamicSliverWidgets.add(const SizedBox(height: 16));
-        }
-      } else {
-        _dynamicSliverWidgets.add(const Text("未能加载产品分类数据或数据格式不正确."));
-      }
-
-      _isInitDataLoaded = true;
-    }
 
     // 初始化按钮位置（如果尚未设置）
     if (_fabPosition == null) {
@@ -428,11 +373,107 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildSliverListItem(BuildContext context, int index) {
-    if (index < _dynamicSliverWidgets.length) {
-      return _dynamicSliverWidgets[index];
+  List<Widget> _buildHomeSlivers(ServiceProvider serviceProvider) {
+    final widgets = <Widget>[RewardWidget()];
+    final initData = serviceProvider.initData;
+    if (initData is Map) {
+      var hasRenderedCategory = false;
+      initData.forEach((categoryName, productListDynamic) {
+        if (productListDynamic is! List) return;
+        final items = <Product2ItemData>[];
+        for (final itemDataDynamic in productListDynamic) {
+          if (itemDataDynamic is! Map) continue;
+          final itemData = itemDataDynamic.map<String, dynamic>(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+          final productId = itemData['product_id']?.toString() ?? '';
+          if (productId.isEmpty || productId.toLowerCase() == 'null') {
+            continue;
+          }
+          items.add(
+            Product2ItemData.fromJson(
+              itemData,
+              imageRoot: serviceProvider.fetchImageRoot(),
+            ),
+          );
+        }
+        if (hasRenderedCategory) {
+          widgets.add(const _CategorySectionDivider());
+        }
+        widgets.add(
+          ProductCategoryList(
+            categoryName: categoryName.toString(),
+            items: items,
+          ),
+        );
+        hasRenderedCategory = true;
+      });
+      if (hasRenderedCategory) {
+        widgets.add(const SizedBox(height: 16));
+      }
     }
-    return const SizedBox.shrink(); // 防止越界
+    return widgets;
+  }
+
+  Future<void> _showStoreSelector() async {
+    final serviceProvider = context.read<ServiceProvider>();
+    if (!serviceProvider.isMultiStore || serviceProvider.isSwitchingStore) {
+      _showAboutUsDialog();
+      return;
+    }
+
+    final storeId = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 12),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 10),
+              child: Text(
+                'Select store',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+            ),
+            for (final store in serviceProvider.stores)
+              ListTile(
+                leading: const Icon(Icons.storefront_outlined),
+                title: Text(store.name),
+                subtitle: store.addressDisplay.isEmpty
+                    ? null
+                    : Text(
+                        store.addressDisplay,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                trailing: store.storeId == serviceProvider.activeStoreId
+                    ? Icon(
+                        Icons.check_circle,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, store.storeId),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || storeId == null) return;
+    final switched = await serviceProvider.selectStore(storeId);
+    if (!mounted) return;
+    if (!switched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            serviceProvider.lastStoreError ?? 'Unable to switch stores.',
+          ),
+        ),
+      );
+      return;
+    }
+    await _refreshNotificationUnreadCount();
   }
 
   Widget _buildAccountStatusChip({
@@ -585,7 +626,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: _showAboutUsDialog,
+        onTap: serviceProvider.isMultiStore
+            ? _showStoreSelector
+            : _showAboutUsDialog,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Row(
@@ -638,7 +681,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 8),
               Icon(
-                Icons.info_outline,
+                serviceProvider.isMultiStore
+                    ? Icons.keyboard_arrow_down
+                    : Icons.info_outline,
                 color: colorScheme.primary.withValues(alpha: 0.85),
                 size: 21,
               ),
@@ -780,6 +825,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final cartSubtotal = serviceProvider.cartSubtotal;
     final cartFabPosition = _effectiveFabPosition(context);
     final isCompactWidth = MediaQuery.sizeOf(context).width < 380;
+    final homeSlivers = _buildHomeSlivers(serviceProvider);
 
     return Scaffold(
       extendBody: true,
@@ -849,8 +895,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   BuildContext context,
                   int index,
                 ) {
-                  return _buildSliverListItem(context, index);
-                }, childCount: _dynamicSliverWidgets.length),
+                  return homeSlivers[index];
+                }, childCount: homeSlivers.length),
               ),
             ],
           ),
@@ -887,6 +933,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
           ),
+          if (serviceProvider.isSwitchingStore)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x33000000),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
         ],
       ),
       bottomNavigationBar: ColoredBox(

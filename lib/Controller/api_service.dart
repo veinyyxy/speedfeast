@@ -21,6 +21,7 @@ class ApiService {
   final String? _baseUrl;
   final String _secretKeyHMAC;
   final String _clientID;
+  String? _storeId;
 
   ApiService(this._baseUrl)
     : _secretKeyHMAC = const String.fromEnvironment(
@@ -28,6 +29,20 @@ class ApiService {
         defaultValue: '',
       ),
       _clientID = const String.fromEnvironment('CLIENT_ID', defaultValue: '');
+
+  String? get storeId => _storeId;
+
+  void setStoreId(String? storeId) {
+    final normalized = storeId?.trim() ?? '';
+    _storeId = normalized.isEmpty ? null : normalized;
+  }
+
+  void _applyContextHeaders(Map<String, String> headers) {
+    final storeId = _storeId;
+    if (storeId != null) {
+      headers['X-Store-Id'] = storeId;
+    }
+  }
 
   // 内部辅助方法：创建 HMAC 签名头部
   Map<String, String> _createRequestHeaders(
@@ -121,6 +136,7 @@ class ApiService {
       normalizedQueryParameters,
       0,
     );
+    _applyContextHeaders(headers);
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -157,6 +173,7 @@ class ApiService {
       normalizedBody,
       1,
     ); // 假设签名也包含了body
+    _applyContextHeaders(headers);
     headers['Content-Type'] = 'application/json';
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';

@@ -4,6 +4,7 @@
     "function":
     {
       "getProductList" : "/api/products/get_list",
+      "storesBootstrap" : "/api/stores/bootstrap",
       "sendVerificationCode" : "/api/verification/send_verification",
       "verifyVerificationCode" : "/api/verification/verify",
       "register" : "/api/users/register",

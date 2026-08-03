@@ -55,6 +55,10 @@ class ServiceConfig {
     return _url(getProductListPath());
   }
 
+  String getStoresBootstrapUrl() {
+    return _url(getStoresBootstrapPath());
+  }
+
   String getVerificationCodeUrl() {
     return _url(getVerificationCodePath());
   }
@@ -138,6 +142,8 @@ class ServiceConfig {
 
   String getProductListPath() =>
       _path('getProductList', '/api/products/get_list');
+  String getStoresBootstrapPath() =>
+      _path('storesBootstrap', '/api/stores/bootstrap');
   String getVerificationCodePath() =>
       _path('sendVerificationCode', '/api/verification/send_verification');
   String verifyVerificationCodePath() =>

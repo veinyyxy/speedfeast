@@ -31,7 +31,14 @@ void main() async {
   await serviceProvider.initialize();
   await BuyerNotificationService.instance.initialize(
     onToken: serviceProvider.registerBuyerNotificationDeviceToken,
-    onTap: (intent) => BuyerNotificationRouter.handle(appNavigatorKey, intent),
+    onTap: (intent) async {
+      if (intent.storeId.isNotEmpty &&
+          intent.storeId != serviceProvider.activeStoreId) {
+        final switched = await serviceProvider.selectStore(intent.storeId);
+        if (!switched) return;
+      }
+      await BuyerNotificationRouter.handle(appNavigatorKey, intent);
+    },
   );
   //await serviceProvider.loadConfig();
   //await serviceProvider.fetchInitData();

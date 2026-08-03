@@ -237,6 +237,7 @@ class BuyerNotificationService {
           ? _readDataText(data, 'event_type')
           : _readDataText(data, 'type'),
       notificationId: _readDataText(data, 'notification_id'),
+      storeId: _readDataText(data, 'store_id'),
     );
   }
 

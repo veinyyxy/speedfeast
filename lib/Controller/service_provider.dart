@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Common/service_config.dart';
+import '../Common/store_context.dart';
 import '../Common/user_preferences.dart';
 import 'api_service.dart';
 import '../Security/collect_features.dart';
@@ -706,6 +707,7 @@ class ServiceProvider with ChangeNotifier {
   static const String _userCartStoragePrefix = 'speedfeast_cart_user_';
   static const String _notificationDeviceIdKey =
       'speedfeast_notification_device_id';
+  static const String _selectedStoreStorageKey = 'speedfeast_selected_store_id';
 
   ServiceConfig? _config;
   dynamic _initData;
@@ -729,6 +731,11 @@ class ServiceProvider with ChangeNotifier {
   StoreProfileConfig _storeProfileConfig = StoreProfileConfig.fallback;
   UserPreferences _userPreferences = UserPreferences.empty();
   late ApiService _apiService;
+  List<BuyerStore> _stores = const [];
+  BuyerStore? _activeStore;
+  String _storeMode = 'single';
+  bool _isSwitchingStore = false;
+  String? _lastStoreError;
 
   bool get isLoggedIn => _isLoggedIn;
   dynamic get initData => _initData;
@@ -742,6 +749,13 @@ class ServiceProvider with ChangeNotifier {
   String? get lastDineInError => _lastDineInError;
   String? get lastLoginError => _lastLoginError;
   String? get lastNotificationsError => _lastNotificationsError;
+  String? get lastStoreError => _lastStoreError;
+  List<BuyerStore> get stores => List.unmodifiable(_stores);
+  BuyerStore? get activeStore => _activeStore;
+  String? get activeStoreId => _activeStore?.storeId;
+  String get storeMode => _storeMode;
+  bool get isMultiStore => _storeMode == 'multi' && _stores.length > 1;
+  bool get isSwitchingStore => _isSwitchingStore;
   String get selectedFulfillmentType => _selectedFulfillmentType;
   RecentOrdersPreferences get recentOrdersPreferences =>
       _userPreferences.recentOrders;
@@ -820,8 +834,11 @@ class ServiceProvider with ChangeNotifier {
 
   String _cartStorageKeyForToken(String? token) {
     final userId = _userIdFromToken(token);
-    if (userId == null || userId.isEmpty) return _guestCartStorageKey;
-    return '$_userCartStoragePrefix$userId';
+    final storeId = _activeStore?.storeId ?? 'default';
+    if (userId == null || userId.isEmpty) {
+      return '${_guestCartStorageKey}_$storeId';
+    }
+    return '$_userCartStoragePrefix${userId}_$storeId';
   }
 
   String? _userIdFromToken(String? token) {
@@ -910,7 +927,10 @@ class ServiceProvider with ChangeNotifier {
   }
 
   String _userPreferencesStorageKeyForToken(String? token) {
-    return UserPreferencesStore.storageKeyForUserId(_userIdFromToken(token));
+    final baseKey = UserPreferencesStore.storageKeyForUserId(
+      _userIdFromToken(token),
+    );
+    return '${baseKey}_${_activeStore?.storeId ?? 'default'}';
   }
 
   Future<void> _loadUserPreferencesForStorageKey(String storageKey) async {
@@ -1413,6 +1433,16 @@ class ServiceProvider with ChangeNotifier {
           if (tableNumber.isEmpty) {
             _lastDineInError = 'The table code response is missing a table.';
             return null;
+          }
+
+          final tableStoreId = table['store_id']?.toString().trim() ?? '';
+          if (tableStoreId.isNotEmpty && tableStoreId != activeStoreId) {
+            final selected = await selectStore(tableStoreId);
+            if (!selected) {
+              _lastDineInError =
+                  _lastStoreError ?? 'The table belongs to another store.';
+              return null;
+            }
           }
 
           _dineInTableContext = table;
@@ -2213,11 +2243,13 @@ class ServiceProvider with ChangeNotifier {
     features = await collectFeatures();
     debugPrint('Security features collected: $features');
 
+    // 加载配置 (此方法内部有 await)
+    await loadConfig();
+    await fetchStoreBootstrap();
+
     // 读取本地 token，但先不要把它视为已登录；必须等服务端验证通过。
     await _loadUserStatus(trustStoredToken: false, notify: false);
 
-    // 加载配置 (此方法内部有 await)
-    await loadConfig();
     await fetchOrderPricingConfig();
 
     if (_userToken != null && _userToken!.isNotEmpty) {
@@ -2416,6 +2448,139 @@ class ServiceProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error loading config: $e');
       rethrow;
+    }
+  }
+
+  BuyerStore? _storeById(Iterable<BuyerStore> stores, String? storeId) {
+    final normalizedStoreId = storeId?.trim() ?? '';
+    if (normalizedStoreId.isEmpty) return null;
+    for (final store in stores) {
+      if (store.storeId == normalizedStoreId) return store;
+    }
+    return null;
+  }
+
+  Future<void> fetchStoreBootstrap() async {
+    if (_config == null) {
+      throw AppException('Service configuration not loaded.');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedStoreId = prefs.getString(_selectedStoreStorageKey)?.trim();
+    _apiService.setStoreId(null);
+
+    final rawResponse = await _apiService.get(
+      _config!.getStoresBootstrapPath(),
+    );
+    if (rawResponse is! Map) {
+      throw AppException('Unexpected store bootstrap response.');
+    }
+    final response = _asStringKeyedMap(rawResponse);
+    final rawStores = response['stores'];
+    final stores = rawStores is List
+        ? rawStores
+              .whereType<Map>()
+              .map(
+                (value) => BuyerStore.fromJson(
+                  value.map<String, dynamic>(
+                    (key, value) => MapEntry(key.toString(), value),
+                  ),
+                ),
+              )
+              .where((store) => store.storeId.isNotEmpty)
+              .toList(growable: false)
+        : const <BuyerStore>[];
+    if (response['success'] != true || stores.isEmpty) {
+      throw AppException('No active store is available.');
+    }
+
+    var selected = _storeById(stores, savedStoreId);
+    selected ??= _storeById(stores, response['selected_store_id']?.toString());
+    if (selected == null) {
+      for (final store in stores) {
+        if (store.isDefault) {
+          selected = store;
+          break;
+        }
+      }
+    }
+    selected ??= stores.first;
+
+    _stores = stores;
+    _activeStore = selected;
+    _storeMode = stores.length > 1 ? 'multi' : 'single';
+    _apiService.setStoreId(selected.storeId);
+    await prefs.setString(_selectedStoreStorageKey, selected.storeId);
+  }
+
+  Future<bool> selectStore(String storeId) async {
+    final nextStore = _storeById(_stores, storeId);
+    if (nextStore == null) {
+      _lastStoreError = 'Store is not available.';
+      notifyListeners();
+      return false;
+    }
+    if (_activeStore?.storeId == nextStore.storeId) return true;
+
+    _isSwitchingStore = true;
+    _lastStoreError = null;
+    notifyListeners();
+    final previousStore = _activeStore;
+    final previousDineInTableContext = _dineInTableContext;
+    final previousOrderPricingConfig = _orderPricingConfig;
+    final previousPickupEtaConfig = _pickupEtaConfig;
+    final previousInStorePaymentConfig = _inStorePaymentConfig;
+    final previousBusinessHoursConfig = _businessHoursConfig;
+    final previousStoreProfileConfig = _storeProfileConfig;
+    final previousInitData = _initData;
+    try {
+      _activeStore = nextStore;
+      _apiService.setStoreId(nextStore.storeId);
+      _dineInTableContext = null;
+      _orderPricingConfig = OrderPricingConfig.fallback;
+      _pickupEtaConfig = PickupEtaConfig.fallback;
+      _inStorePaymentConfig = InStorePaymentConfig.fallback;
+      _businessHoursConfig = BusinessHoursConfig.fallback;
+      _storeProfileConfig = StoreProfileConfig.fallback;
+      await (await SharedPreferences.getInstance()).setString(
+        _selectedStoreStorageKey,
+        nextStore.storeId,
+      );
+      await _switchCartStorageForToken(_userToken);
+      await _switchUserPreferencesForToken(_userToken);
+      _initData = null;
+      await fetchOrderPricingConfig();
+      await fetchInitData();
+      await BuyerNotificationService.instance.registerCurrentToken();
+      return true;
+    } catch (error) {
+      _activeStore = previousStore;
+      _apiService.setStoreId(previousStore?.storeId);
+      _dineInTableContext = previousDineInTableContext;
+      _orderPricingConfig = previousOrderPricingConfig;
+      _pickupEtaConfig = previousPickupEtaConfig;
+      _inStorePaymentConfig = previousInStorePaymentConfig;
+      _businessHoursConfig = previousBusinessHoursConfig;
+      _storeProfileConfig = previousStoreProfileConfig;
+      _initData = previousInitData;
+      try {
+        if (previousStore != null) {
+          await (await SharedPreferences.getInstance()).setString(
+            _selectedStoreStorageKey,
+            previousStore.storeId,
+          );
+        }
+        await _switchCartStorageForToken(_userToken);
+        await _switchUserPreferencesForToken(_userToken);
+      } catch (rollbackError) {
+        debugPrint('Store switch rollback persistence failed: $rollbackError');
+      }
+      _lastStoreError = 'Unable to switch stores. Please try again.';
+      debugPrint('Store switch failed: $error');
+      return false;
+    } finally {
+      _isSwitchingStore = false;
+      notifyListeners();
     }
   }
 

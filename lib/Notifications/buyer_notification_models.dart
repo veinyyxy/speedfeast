@@ -11,6 +11,7 @@ class BuyerNotification {
     required this.payload,
     required this.isRead,
     required this.createdAt,
+    this.storeId = '',
     this.readAt = '',
   });
 
@@ -23,6 +24,7 @@ class BuyerNotification {
   final Map<String, dynamic> payload;
   final bool isRead;
   final String createdAt;
+  final String storeId;
   final String readAt;
 
   String get displayTitle => title.isNotEmpty ? title : 'SpeedFeast';
@@ -48,6 +50,7 @@ class BuyerNotification {
       actionType: _readText(json, const ['action_type', 'actionType']),
       actionPayload: _readMap(json, const ['action_payload', 'actionPayload']),
       payload: _readMap(json, const ['payload', 'data']),
+      storeId: _readText(json, const ['store_id', 'storeId']),
       isRead: _readBool(json, const ['is_read', 'isRead', 'read']),
       readAt: _readText(json, const ['read_at', 'readAt']),
       createdAt: _readText(json, const ['created_at', 'createdAt', 'sent_at']),
@@ -61,12 +64,14 @@ class BuyerNotificationRouteIntent {
     required this.actionPayload,
     required this.eventType,
     this.notificationId = '',
+    this.storeId = '',
   });
 
   final String actionType;
   final Map<String, dynamic> actionPayload;
   final String eventType;
   final String notificationId;
+  final String storeId;
 
   factory BuyerNotificationRouteIntent.fromNotification(
     BuyerNotification notification,
@@ -76,6 +81,7 @@ class BuyerNotificationRouteIntent {
       actionPayload: notification.actionPayload,
       eventType: notification.eventType,
       notificationId: notification.id,
+      storeId: notification.storeId,
     );
   }
 
@@ -106,6 +112,7 @@ class BuyerNotificationRouteIntent {
         'notification_id',
         'notificationId',
       ]),
+      storeId: _readText(data, const ['store_id', 'storeId']),
     );
   }
 
@@ -115,6 +122,7 @@ class BuyerNotificationRouteIntent {
       'action_payload': actionPayload,
       'event_type': eventType,
       'notification_id': notificationId,
+      'store_id': storeId,
     });
   }
 }
