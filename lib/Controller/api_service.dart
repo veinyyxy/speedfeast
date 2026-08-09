@@ -8,8 +8,10 @@ import 'package:speedfeast/Security/make_request_header.dart';
 class AppException implements Exception {
   final String message;
   final int? statusCode;
+  final String? code;
+  final Map<String, dynamic>? details;
 
-  AppException(this.message, {this.statusCode});
+  AppException(this.message, {this.statusCode, this.code, this.details});
 
   @override
   String toString() {
@@ -22,6 +24,9 @@ class ApiService {
   final String _secretKeyHMAC;
   final String _clientID;
   String? _storeId;
+  String? _buyerDeviceId;
+  String? _buyerPlatform;
+  ValueChanged<AppException>? onBuyerAccessDenied;
 
   ApiService(this._baseUrl)
     : _secretKeyHMAC = const String.fromEnvironment(
@@ -37,10 +42,25 @@ class ApiService {
     _storeId = normalized.isEmpty ? null : normalized;
   }
 
+  void setBuyerDeviceContext({required String deviceId, String? platform}) {
+    final normalizedDeviceId = deviceId.trim();
+    _buyerDeviceId = normalizedDeviceId.isEmpty ? null : normalizedDeviceId;
+    final normalizedPlatform = platform?.trim() ?? '';
+    _buyerPlatform = normalizedPlatform.isEmpty ? null : normalizedPlatform;
+  }
+
   void _applyContextHeaders(Map<String, String> headers) {
     final storeId = _storeId;
     if (storeId != null) {
       headers['X-Store-Id'] = storeId;
+    }
+    final buyerDeviceId = _buyerDeviceId;
+    if (buyerDeviceId != null) {
+      headers['X-Buyer-Device-Id'] = buyerDeviceId;
+    }
+    final buyerPlatform = _buyerPlatform;
+    if (buyerPlatform != null) {
+      headers['X-Buyer-Platform'] = buyerPlatform;
     }
   }
 
@@ -204,6 +224,8 @@ class ApiService {
       return {}; // 返回空对象如果响应体为空
     } else if (response.statusCode >= 400 && response.statusCode < 500) {
       String errorMessage = 'Client error';
+      String? errorCode;
+      Map<String, dynamic>? errorDetails;
       if (response.body.isNotEmpty) {
         try {
           final errorData = jsonDecode(response.body);
@@ -212,6 +234,13 @@ class ApiService {
                 errorData['message']?.toString() ??
                 errorData['error']?.toString() ??
                 errorMessage;
+            errorCode = errorData['code']?.toString();
+            final rawDetails = errorData['details'] ?? errorData['quota'];
+            if (rawDetails is Map) {
+              errorDetails = rawDetails.map<String, dynamic>(
+                (key, value) => MapEntry(key.toString(), value),
+              );
+            }
           } else {
             errorMessage = response.body;
           }
@@ -219,7 +248,20 @@ class ApiService {
           errorMessage = response.body;
         }
       }
-      throw AppException(errorMessage, statusCode: response.statusCode);
+      final exception = AppException(
+        errorMessage,
+        statusCode: response.statusCode,
+        code: errorCode,
+        details: errorDetails,
+      );
+      if (const {
+        'BUYER_ACCESS_LIMIT_REACHED',
+        'SAAS_INSTANCE_SUSPENDED',
+        'SAAS_LICENSE_EXPIRED',
+      }.contains(errorCode)) {
+        onBuyerAccessDenied?.call(exception);
+      }
+      throw exception;
     } else if (response.statusCode >= 500) {
       throw AppException(
         'Server error (Status: ${response.statusCode})',

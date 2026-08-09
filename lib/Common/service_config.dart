@@ -59,6 +59,8 @@ class ServiceConfig {
     return _url(getStoresBootstrapPath());
   }
 
+  String getBuyerAccessPath() => _path('buyerAccess', '/api/buyer/access');
+
   String getVerificationCodeUrl() {
     return _url(getVerificationCodePath());
   }

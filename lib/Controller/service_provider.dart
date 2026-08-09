@@ -1,4 +1,5 @@
 // E:/flutter_project/speedfeast/lib/Controller/service_provider.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Common/service_config.dart';
 import '../Common/store_context.dart';
 import '../Common/user_preferences.dart';
+import '../Common/buyer_app_theme.dart';
 import 'api_service.dart';
 import '../Security/collect_features.dart';
 import '../Common/order_item.dart';
@@ -729,6 +731,7 @@ class ServiceProvider with ChangeNotifier {
   InStorePaymentConfig _inStorePaymentConfig = InStorePaymentConfig.fallback;
   BusinessHoursConfig _businessHoursConfig = BusinessHoursConfig.fallback;
   StoreProfileConfig _storeProfileConfig = StoreProfileConfig.fallback;
+  BuyerAppTheme _buyerAppTheme = BuyerAppTheme.fallback;
   UserPreferences _userPreferences = UserPreferences.empty();
   late ApiService _apiService;
   List<BuyerStore> _stores = const [];
@@ -736,6 +739,12 @@ class ServiceProvider with ChangeNotifier {
   String _storeMode = 'single';
   bool _isSwitchingStore = false;
   String? _lastStoreError;
+  bool _buyerAccessAllowed = true;
+  bool _isCheckingBuyerAccess = false;
+  String? _buyerAccessError;
+  int _buyerAccessHeartbeatSeconds = 300;
+  Timer? _buyerAccessHeartbeatTimer;
+  bool _experienceInitialized = false;
 
   bool get isLoggedIn => _isLoggedIn;
   dynamic get initData => _initData;
@@ -750,6 +759,10 @@ class ServiceProvider with ChangeNotifier {
   String? get lastLoginError => _lastLoginError;
   String? get lastNotificationsError => _lastNotificationsError;
   String? get lastStoreError => _lastStoreError;
+  bool get buyerAccessAllowed => _buyerAccessAllowed;
+  bool get isCheckingBuyerAccess => _isCheckingBuyerAccess;
+  String? get buyerAccessError => _buyerAccessError;
+  BuyerAppTheme get buyerAppTheme => _buyerAppTheme;
   List<BuyerStore> get stores => List.unmodifiable(_stores);
   BuyerStore? get activeStore => _activeStore;
   String? get activeStoreId => _activeStore?.storeId;
@@ -2245,6 +2258,23 @@ class ServiceProvider with ChangeNotifier {
 
     // 加载配置 (此方法内部有 await)
     await loadConfig();
+    final deviceId = await _notificationDeviceId();
+    _apiService.setBuyerDeviceContext(
+      deviceId: deviceId,
+      platform: _paymentPlatform,
+    );
+    final accessGranted = await refreshBuyerAccess(notify: false);
+    if (accessGranted) {
+      await _initializeAvailableExperience();
+    }
+
+    _isInitialized = true;
+    notifyListeners();
+    debugPrint('ServiceProvider initialization finished.');
+  }
+
+  Future<void> _initializeAvailableExperience() async {
+    if (_experienceInitialized) return;
     await fetchStoreBootstrap();
 
     // 读取本地 token，但先不要把它视为已登录；必须等服务端验证通过。
@@ -2261,10 +2291,80 @@ class ServiceProvider with ChangeNotifier {
 
     // 初始化完成后，可以尝试获取初始化数据
     await fetchInitData();
+    _experienceInitialized = true;
+  }
 
-    _isInitialized = true;
+  void _handleBuyerAccessDenied(AppException error) {
+    _buyerAccessAllowed = false;
+    _buyerAccessError = error.message;
+    _buyerAccessHeartbeatTimer?.cancel();
     notifyListeners();
-    debugPrint('ServiceProvider initialization finished.');
+  }
+
+  void _scheduleBuyerAccessHeartbeat() {
+    _buyerAccessHeartbeatTimer?.cancel();
+    _buyerAccessHeartbeatTimer = Timer.periodic(
+      Duration(seconds: _buyerAccessHeartbeatSeconds),
+      (_) => refreshBuyerAccess(),
+    );
+  }
+
+  Future<bool> refreshBuyerAccess({bool notify = true}) async {
+    if (_config == null) return false;
+    _isCheckingBuyerAccess = true;
+    if (notify) notifyListeners();
+    try {
+      final rawResponse = await _apiService.get(_config!.getBuyerAccessPath());
+      final response = rawResponse is Map
+          ? _asStringKeyedMap(rawResponse)
+          : <String, dynamic>{};
+      final access = response['access'] is Map
+          ? _asStringKeyedMap(response['access'] as Map)
+          : <String, dynamic>{};
+      _buyerAccessAllowed =
+          response['success'] == true && access['allowed'] != false;
+      _buyerAccessError = _buyerAccessAllowed
+          ? null
+          : access['error']?.toString() ?? 'Buyer access is unavailable.';
+      final heartbeat = int.tryParse(
+        access['heartbeat_seconds']?.toString() ?? '',
+      );
+      if (heartbeat != null && heartbeat >= 30) {
+        _buyerAccessHeartbeatSeconds = heartbeat;
+      }
+      if (_buyerAccessAllowed) _scheduleBuyerAccessHeartbeat();
+      return _buyerAccessAllowed;
+    } on AppException catch (error) {
+      if (const {
+        'BUYER_ACCESS_LIMIT_REACHED',
+        'SAAS_INSTANCE_SUSPENDED',
+        'SAAS_LICENSE_EXPIRED',
+      }.contains(error.code)) {
+        _buyerAccessAllowed = false;
+        _buyerAccessError = error.message;
+        _buyerAccessHeartbeatTimer?.cancel();
+        return false;
+      }
+      debugPrint('Buyer access check failed: ${error.message}');
+      return _buyerAccessAllowed;
+    } finally {
+      _isCheckingBuyerAccess = false;
+      if (notify) notifyListeners();
+    }
+  }
+
+  Future<bool> retryBuyerAccess() async {
+    final granted = await refreshBuyerAccess();
+    if (granted && !_experienceInitialized) {
+      try {
+        await _initializeAvailableExperience();
+      } catch (error) {
+        debugPrint('Buyer experience initialization failed: $error');
+        return false;
+      }
+      notifyListeners();
+    }
+    return granted;
   }
 
   // --- 用户状态管理 ---
@@ -2443,6 +2543,7 @@ class ServiceProvider with ChangeNotifier {
       final jsonMap = jsonDecode(jsonString);
       _config = ServiceConfig.fromJson(jsonMap['service']);
       _apiService = ApiService(_config!.getBaseUrl());
+      _apiService.onBuyerAccessDenied = _handleBuyerAccessDenied;
       notifyListeners();
       debugPrint('ServiceConfig loaded: ${_config!.getBaseUrl()}');
     } catch (e) {
@@ -2532,6 +2633,7 @@ class ServiceProvider with ChangeNotifier {
     final previousInStorePaymentConfig = _inStorePaymentConfig;
     final previousBusinessHoursConfig = _businessHoursConfig;
     final previousStoreProfileConfig = _storeProfileConfig;
+    final previousBuyerAppTheme = _buyerAppTheme;
     final previousInitData = _initData;
     try {
       _activeStore = nextStore;
@@ -2542,6 +2644,7 @@ class ServiceProvider with ChangeNotifier {
       _inStorePaymentConfig = InStorePaymentConfig.fallback;
       _businessHoursConfig = BusinessHoursConfig.fallback;
       _storeProfileConfig = StoreProfileConfig.fallback;
+      _buyerAppTheme = BuyerAppTheme.fallback;
       await (await SharedPreferences.getInstance()).setString(
         _selectedStoreStorageKey,
         nextStore.storeId,
@@ -2562,6 +2665,7 @@ class ServiceProvider with ChangeNotifier {
       _inStorePaymentConfig = previousInStorePaymentConfig;
       _businessHoursConfig = previousBusinessHoursConfig;
       _storeProfileConfig = previousStoreProfileConfig;
+      _buyerAppTheme = previousBuyerAppTheme;
       _initData = previousInitData;
       try {
         if (previousStore != null) {
@@ -2608,6 +2712,7 @@ class ServiceProvider with ChangeNotifier {
         _inStorePaymentConfig = InStorePaymentConfig.fromSystemConfigs(configs);
         _businessHoursConfig = BusinessHoursConfig.fromSystemConfigs(configs);
         _storeProfileConfig = StoreProfileConfig.fromSystemConfigs(configs);
+        _buyerAppTheme = BuyerAppTheme.fromSystemConfigs(configs);
         notifyListeners();
         debugPrint(
           'Order system config loaded: '
@@ -3424,5 +3529,11 @@ class ServiceProvider with ChangeNotifier {
     final product = _latestProductsById()[normalizedId];
     if (product == null) return null;
     return Map<String, dynamic>.from(product);
+  }
+
+  @override
+  void dispose() {
+    _buyerAccessHeartbeatTimer?.cancel();
+    super.dispose();
   }
 }

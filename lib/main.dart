@@ -52,83 +52,14 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Colors.lightBlue;
+    final appTheme = context.watch<ServiceProvider>().buyerAppTheme;
 
     return MaterialApp(
       navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        // 将主色调改为 DeepOrange
-        primarySwatch: primaryColor,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          primary: primaryColor,
-          secondary: primaryColor,
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: Colors.white, // Pure white background
-        appBarTheme: const AppBarTheme(
-          // AppBar 背景色改为 DeepOrange
-          backgroundColor: Colors.white70,
-          elevation: 0, // No shadow for app bar
-          // AppBar 图标颜色改为白色，与 DeepOrange 背景形成对比
-          iconTheme: IconThemeData(color: primaryColor),
-          titleTextStyle: TextStyle(
-            // AppBar 标题文字颜色改为白色
-            color: primaryColor,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        iconTheme: const IconThemeData(color: primaryColor),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            foregroundColor: primaryColor,
-            //minimumSize: Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-        buttonTheme: ButtonThemeData(
-          buttonColor: primaryColor,
-          textTheme: ButtonTextTheme.primary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25.0),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(foregroundColor: primaryColor),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: primaryColor,
-            side: const BorderSide(color: primaryColor, width: 2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25.0),
-            ),
-          ),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          selectedItemColor: primaryColor,
-          unselectedItemColor: Colors.grey,
-        ),
-        progressIndicatorTheme: const ProgressIndicatorThemeData(
-          color: primaryColor,
-        ),
-      ),
+      theme: appTheme.toThemeData(),
       routes: {
-        '/': (context) => HomePage(),
+        '/': (context) => const _BuyerRoot(),
         '/notifications': (context) => const NotificationCenterPage(),
         '/order_page': (context) => OrderPage(),
         '/order_page/recent_orders': (context) => RecentOrdersPage(),
@@ -250,4 +181,84 @@ class MyApp extends StatelessWidget {
       ),
     );
   }*/
+}
+
+class _BuyerRoot extends StatelessWidget {
+  const _BuyerRoot();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<ServiceProvider>();
+    if (!provider.buyerAccessAllowed) {
+      return _BuyerAccessUnavailablePage(
+        message: provider.buyerAccessError,
+        isRetrying: provider.isCheckingBuyerAccess,
+        onRetry: provider.retryBuyerAccess,
+      );
+    }
+    return HomePage();
+  }
+}
+
+class _BuyerAccessUnavailablePage extends StatelessWidget {
+  const _BuyerAccessUnavailablePage({
+    required this.message,
+    required this.isRetrying,
+    required this.onRetry,
+  });
+
+  final String? message;
+  final bool isRetrying;
+  final Future<bool> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.people_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Service is busy',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    message?.trim().isNotEmpty == true
+                        ? message!
+                        : 'The current visitor capacity has been reached. Please try again shortly.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: isRetrying ? null : onRetry,
+                    icon: isRetrying
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                    label: Text(isRetrying ? 'Checking' : 'Try again'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
