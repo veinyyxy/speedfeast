@@ -8,6 +8,15 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      target:
+        description: Explicit deployment target (sandbox requires separate resource approval)
+        type: choice
+        required: true
+        default: production
+        options:
+          - production
+          - sandbox
 
 permissions:
   contents: read
@@ -21,6 +30,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Verify sandbox deployment contract (no AWS)
+        run: node --test tool/validate_sandbox_web_config.test.mjs
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -50,17 +62,30 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: production
+    environment: ${{ inputs.target == 'sandbox' && 'techlong-sandbox-buyer-deploy' || 'production' }}
     permissions:
       contents: read
       id-token: write
     concurrency:
-      group: buyer-web-production
-      cancel-in-progress: true
+      group: buyer-web-${{ inputs.target == 'sandbox' && 'sandbox' || 'production' }}
+      cancel-in-progress: ${{ inputs.target != 'sandbox' }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Validate deployment target
+        env:
+          DEPLOY_TARGET: ${{ inputs.target || 'production' }}
+        shell: bash
+        run: |
+          case "$DEPLOY_TARGET" in
+            production|sandbox) ;;
+            *) echo "Unsupported deployment target" >&2; exit 1 ;;
+          esac
+
+      - name: Verify sandbox deployment contract (no AWS)
+        run: node --test tool/validate_sandbox_web_config.test.mjs
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -79,6 +104,7 @@ jobs:
         run: flutter test
 
       - name: Validate production configuration
+        if: inputs.target != 'sandbox'
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
           HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
@@ -100,10 +126,24 @@ jobs:
           test -n "$S3_BUCKET"
           test -n "$CLOUDFRONT_DISTRIBUTION_ID"
 
+      - name: Validate sandbox configuration
+        if: inputs.target == 'sandbox'
+        env:
+          CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
+          HMAC_SECRET_KEY: ${{ secrets.SANDBOX_BUYER_HMAC_SECRET_KEY }}
+          BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
+          BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: node tool/validate_sandbox_web_config.mjs
+
       - name: Build web release
         env:
           CLIENT_ID: ${{ vars.BUYER_CLIENT_ID }}
-          HMAC_SECRET_KEY: ${{ secrets.BUYER_HMAC_SECRET_KEY }}
+          # Select the secret NAME, never fall back from an empty sandbox value.
+          HMAC_SECRET_KEY: ${{ secrets[inputs.target == 'sandbox' && 'SANDBOX_BUYER_HMAC_SECRET_KEY' || 'BUYER_HMAC_SECRET_KEY'] }}
           BUYER_FIREBASE_WEB_VAPID_KEY: ${{ vars.BUYER_FIREBASE_WEB_VAPID_KEY }}
           BUYER_API_BASE_URL: ${{ vars.BUYER_API_BASE_URL }}
         run: >-
@@ -114,16 +154,49 @@ jobs:
           --dart-define=BUYER_API_BASE_URL="$BUYER_API_BASE_URL"
 
       - name: Authenticate to AWS
+        if: inputs.target != 'sandbox'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Authenticate sandbox to AWS
+        if: inputs.target == 'sandbox'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: '402010193138'
+          role-duration-seconds: 900
+          unset-current-credentials: true
+          disable-retry: true
+
       - name: Deploy to S3
+        if: inputs.target != 'sandbox'
         run: aws s3 sync build/web "s3://${{ vars.S3_BUCKET }}" --delete
 
+      - name: Deploy sandbox to S3 without deletion
+        if: inputs.target == 'sandbox'
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          AWS_MAX_ATTEMPTS: '1'
+          AWS_RETRY_MODE: standard
+        run: aws s3 sync build/web "s3://${S3_BUCKET}" --only-show-errors --no-progress
+
       - name: Invalidate CloudFront cache
+        if: inputs.target != 'sandbox'
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
+          --paths "/*"
+
+      - name: Invalidate sandbox CloudFront cache
+        if: inputs.target == 'sandbox'
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+          AWS_MAX_ATTEMPTS: '1'
+          AWS_RETRY_MODE: standard
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID"
           --paths "/*"
